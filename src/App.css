@@ -41,8 +41,101 @@
   margin-top: 32px;
 }
 
+.title-actions--stacked {
+  align-items: stretch;
+  flex-direction: column;
+  width: min(360px, 100%);
+}
+
 .title-actions button {
   min-width: 180px;
+}
+
+.title-mode-panel {
+  border-top: 1px solid rgba(229, 188, 126, 0.24);
+  display: grid;
+  gap: 16px;
+  margin-top: 28px;
+  padding-top: 24px;
+}
+
+.title-mode-panel label {
+  color: var(--text);
+  display: grid;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  gap: 8px;
+  letter-spacing: 0.08em;
+  max-width: 360px;
+  text-transform: uppercase;
+}
+
+.title-mode-panel input,
+.title-mode-panel select {
+  border: 1px solid rgba(229, 188, 126, 0.36);
+  color: var(--text-h);
+  font: 700 0.95rem/1.2 var(--mono);
+  padding: 12px 14px;
+  background: rgba(5, 7, 8, 0.54);
+}
+
+.title-back-button {
+  justify-self: start;
+}
+
+.online-lobby {
+  display: grid;
+  gap: 20px;
+}
+
+.online-seat-list {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin-top: 8px;
+}
+
+.online-seat-card {
+  border: 1px solid rgba(229, 188, 126, 0.28);
+  padding: 16px;
+  background: rgba(5, 7, 8, 0.42);
+}
+
+.online-seat-card h3,
+.online-seat-card p {
+  margin: 0;
+}
+
+.online-seat-card span,
+.online-seat-card strong {
+  color: var(--brass-light);
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin-right: 10px;
+  margin-top: 12px;
+  text-transform: uppercase;
+}
+
+.online-status {
+  border: 1px solid rgba(229, 188, 126, 0.28);
+  margin: 16px auto 0;
+  max-width: 760px;
+  padding: 12px 16px;
+  background: rgba(5, 7, 8, 0.62);
+}
+
+.online-status--error {
+  border-color: rgba(185, 65, 61, 0.72);
+  color: #ffd8d4;
+}
+
+.online-turn-note {
+  color: var(--muted);
+  margin: 8px 0 0;
 }
 
 .panel {
