@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 
+import { AltMagnifierOverlay, useAltMagnifier } from './altMagnifier'
 import './App.css'
 
 import type { Industry, PlayerCount } from './game/cards'
@@ -289,6 +290,38 @@ function formatDiscardCard(card: GameCard): string {
   return card.kind === 'wild-location' ? 'Wild location' : 'Wild industry'
 }
 
+function HelpPanel() {
+  return (
+    <section className="panel help-panel" aria-label="Help">
+      <details className="help-panel__details">
+        <summary className="help-panel__summary">
+          <span className="eyebrow">Help</span>
+          <span className="help-panel__title">Controls and tips</span>
+        </summary>
+        <div className="help-panel__content">
+          <article className="help-panel__item">
+            <h3>Magnify details</h3>
+            <p>
+              Hold <kbd>Alt</kbd> and hover tiles, cards, link icons, or empty areas on the player
+              board. A larger preview appears in the bottom-right corner. Release <kbd>Alt</kbd> to
+              close it.
+            </p>
+          </article>
+          <article className="help-panel__item">
+            <h3>Flip industry tiles</h3>
+            <p>Double-click an industry tile to flip it face down or face up.</p>
+            <ul>
+              <li>Player board stacks with tiles remaining</li>
+              <li>Developed or outdated industry tiles in the sidebar</li>
+              <li>Industry tiles on the main board with no resource cubes on them</li>
+            </ul>
+          </article>
+        </div>
+      </details>
+    </section>
+  )
+}
+
 function CardFace({ card }: { card: GameCard }) {
   if (card.kind === 'location') {
     const faceId = scannedLocationFaces[card.name]
@@ -340,6 +373,7 @@ function CardFace({ card }: { card: GameCard }) {
 function App() {
   const [game, setGame] = useState<GameState | null>(null)
   const [turnStartSnapshot, setTurnStartSnapshot] = useState<GameState | null>(null)
+  const magnifier = useAltMagnifier()
   const boardMapRef = useRef<HTMLDivElement | null>(null)
   const calibratedIndustrySpaces = industrySpaces
   const calibratedLinkSpaces = linkSpaces
@@ -1126,7 +1160,9 @@ function App() {
               </button>
             ))}
           </div>
+          <HelpPanel />
         </section>
+        <AltMagnifierOverlay {...magnifier} />
       </main>
     )
   }
@@ -1152,6 +1188,8 @@ function App() {
           ))}
         </div>
       </section>
+
+      <HelpPanel />
 
       <section className="score-panel" aria-label="Player VP and income counters">
         <div className="panel__header">
@@ -1890,6 +1928,7 @@ function App() {
         )}
       </section>
 
+      <AltMagnifierOverlay {...magnifier} />
     </main>
   )
 }
