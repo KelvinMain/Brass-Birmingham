@@ -1,32 +1,20 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 
 import { AltMagnifierOverlay, useAltMagnifier } from './altMagnifier'
+import { TitleScreen } from './titleScreen'
 import './App.css'
 
 import type { Industry, PlayerCount } from './game/cards'
 import {
   beerResourceSpaces,
   boardControlSpaces,
-  flipIndustryTile,
   getVisibleMerchantTilePlacements,
   industrySpaces,
   incomeTrackSpaces,
   linkSpaces,
   marketResourceSpaces,
   merchantTileSpaces,
-  moveIndustryTile,
-  moveLinkTile,
-  moveResourceCubeToBeer,
-  moveResourceCubeToMarket,
-  placeIndustryResourceCube,
-  placeIndustryTile,
-  placeLinkTile,
-  removeBeerResourceCube,
-  removeIndustryTile,
-  removeIndustryResourceCube,
-  removeLinkTile,
-  removeMarketResourceCube,
   resourceCubeKinds,
 } from './game/board'
 import type {
@@ -37,28 +25,17 @@ import type {
   MarketResourceSpace,
 } from './game/board'
 import {
-  addCardToHand,
-  drawFromStack,
   getDeckForPlayerCount,
   HAND_LIMIT,
   shuffleDeck,
 } from './game/deck'
 import type { DrawableStacks, GameCard } from './game/deck'
+import { applyGameAction } from './game/actions'
+import type { GameAction } from './game/actions'
 import {
   createGameState,
-  consumeFlippedPlayerBoardIndustryTile,
-  developIndustryTile,
-  discardCardFromPlayerHand,
-  flipDevelopedIndustryTile,
-  flipPlayerBoardIndustryTile,
   getRequiredEndTurnHandSize,
   getTurnOrderSpendLabel,
-  passTurn,
-  removeDevelopedIndustryTile,
-  restoreFlippedPlayerBoardIndustryTile,
-  updatePlayerMoney,
-  updatePlayerRoundSpending,
-  updatePlayerScore,
 } from './game/game'
 import type { GameState, PlayerColor } from './game/game'
 import {
@@ -69,6 +46,10 @@ import {
   playerBoardIndustryTiles,
 } from './game/playerBoard'
 import type { PlayerBoardTileAssetColor } from './game/playerBoard'
+import { createMultiplayerClient } from './multiplayer/client'
+import type { MultiplayerClient } from './multiplayer/client'
+import type { ServerMessage } from './multiplayer/protocol'
+import type { RoomView } from './multiplayer/roomTypes'
 
 type CardStyle = CSSProperties & {
   '--card-face-image'?: string
@@ -83,8 +64,6 @@ type BoardPieceStyle = CSSProperties & {
   '--owner-color'?: string
   '--owner-text-color'?: string
 }
-
-const playerCounts: PlayerCount[] = [2, 3, 4]
 
 const playerColorStyles = {
   white: {
@@ -373,6 +352,12 @@ function CardFace({ card }: { card: GameCard }) {
 function App() {
   const [game, setGame] = useState<GameState | null>(null)
   const [turnStartSnapshot, setTurnStartSnapshot] = useState<GameState | null>(null)
+  const [onlineRoom, setOnlineRoom] = useState<RoomView | null>(null)
+  const [onlineClientId, setOnlineClientId] = useState<string | null>(null)
+  const [onlinePlayerId, setOnlinePlayerId] = useState<string | null>(null)
+  const [onlineError, setOnlineError] = useState<string | null>(null)
+  const multiplayerClientRef = useRef<MultiplayerClient | null>(null)
+  const unsubscribeMultiplayerRef = useRef<(() => void) | null>(null)
   const magnifier = useAltMagnifier()
   const boardMapRef = useRef<HTMLDivElement | null>(null)
   const calibratedIndustrySpaces = industrySpaces
@@ -392,7 +377,11 @@ function App() {
   const activeEraLinkLabel = activeEraLinkKind === 'canal' ? 'Canal era' : 'Rail era'
   const activeEraLinkImageUrl = getScannedLinkImageUrl(activePlayer?.color, activeEraLinkKind)
   const requiredEndTurnHandSize = game ? getRequiredEndTurnHandSize(game) : HAND_LIMIT
+  const isOnlineGame = Boolean(onlineRoom)
+  const canUseActivePlayerControls =
+    Boolean(activePlayer) && !isGameEnded && (!isOnlineGame || activePlayer?.id === onlinePlayerId)
   const canPassTurn =
+    canUseActivePlayerControls &&
     Boolean(game && activePlayer && game.status === 'playing') &&
     activePlayer?.hand.length === requiredEndTurnHandSize
   const activePlayerBoardAssetColor = activePlayer
@@ -450,25 +439,136 @@ function App() {
     }
   }
 
+  useEffect(
+    () => () => {
+      unsubscribeMultiplayerRef.current?.()
+    },
+    [],
+  )
+
+  const applyOnlineRoomView = (view: RoomView) => {
+    setOnlineRoom(view)
+
+    if (view.game) {
+      setGame(view.game)
+      setTurnStartSnapshot(null)
+    }
+  }
+
+  const handleServerMessage = (message: ServerMessage) => {
+    if (message.type === 'error') {
+      setOnlineError(message.message)
+      return
+    }
+
+    setOnlineError(null)
+
+    if (message.type === 'room-created' || message.type === 'room-joined') {
+      setOnlineClientId(message.clientId)
+      setOnlinePlayerId(message.playerId)
+      applyOnlineRoomView(message.view)
+      return
+    }
+
+    applyOnlineRoomView(message.view)
+  }
+
+  const getMultiplayerClient = () => {
+    if (!multiplayerClientRef.current) {
+      const socketUrl = import.meta.env.VITE_WS_URL as string | undefined
+      const client = createMultiplayerClient(socketUrl ? { socketUrl } : undefined)
+      unsubscribeMultiplayerRef.current = client.subscribe(handleServerMessage)
+      multiplayerClientRef.current = client
+    }
+
+    return multiplayerClientRef.current
+  }
+
   const startGame = (nextPlayerCount: PlayerCount) => {
     const nextGame = createShuffledGameState(nextPlayerCount)
+    setOnlineRoom(null)
+    setOnlineClientId(null)
+    setOnlinePlayerId(null)
+    setOnlineError(null)
     setGame(nextGame)
     setTurnStartSnapshot(nextGame)
   }
 
+  const dispatchGameAction = (action: GameAction) => {
+    if (onlineRoom) {
+      getMultiplayerClient().sendAction(onlineRoom.roomCode, action)
+      return
+    }
+
+    setGame((currentGame) => (currentGame ? applyGameAction(currentGame, action) : currentGame))
+  }
+
+  const hostOnlineGame = (nextPlayerCount: PlayerCount, hostName: string) => {
+    setGame(null)
+    setTurnStartSnapshot(null)
+    setOnlineError(null)
+    getMultiplayerClient().createRoom({
+      hostName,
+      playerCount: nextPlayerCount,
+    })
+  }
+
+  const joinOnlineGame = (roomCode: string, playerName: string) => {
+    setGame(null)
+    setTurnStartSnapshot(null)
+    setOnlineError(null)
+    getMultiplayerClient().joinRoom({
+      roomCode,
+      playerName,
+    })
+  }
+
+  const startOnlineRoom = () => {
+    if (!onlineRoom) {
+      return
+    }
+
+    getMultiplayerClient().startRoom(onlineRoom.roomCode)
+  }
+
+  const returnToTitle = () => {
+    setGame(null)
+    setOnlineRoom(null)
+    setOnlineClientId(null)
+    setOnlinePlayerId(null)
+    setOnlineError(null)
+    setTurnStartSnapshot(null)
+  }
+
   const passActiveTurn = () => {
-    if (!game) {
+    if (!game || !activePlayer) {
       return
     }
 
-    const nextGame = passTurn(game)
-
-    if (nextGame === game) {
+    if (onlineRoom) {
+      dispatchGameAction({
+        type: 'pass-turn',
+        playerId: activePlayer.id,
+      })
       return
     }
 
-    setGame(nextGame)
-    setTurnStartSnapshot(nextGame.status === 'playing' ? nextGame : null)
+    setGame((currentGame) => {
+      if (!currentGame) {
+        return currentGame
+      }
+
+      const nextGame = applyGameAction(currentGame, {
+        type: 'pass-turn',
+        playerId: activePlayer.id,
+      })
+
+      if (nextGame !== currentGame) {
+        setTurnStartSnapshot(nextGame.status === 'playing' ? nextGame : null)
+      }
+
+      return nextGame
+    })
   }
 
   const resetActiveTurn = () => {
@@ -484,36 +584,11 @@ function App() {
       return
     }
 
-    const result =
-      source === 'wildLocation'
-        ? drawFromStack(game.stacks.wildLocation)
-        : drawFromStack(game.stacks.wildIndustry)
-
-    if (!result.drawn) {
-      return
-    }
-
-    const drawnCard: GameCard = result.drawn
-
-    setGame((currentGame) =>
-      currentGame
-        ? {
-            ...currentGame,
-            players: currentGame.players.map((player) =>
-              player.id === activePlayer.id
-                ? {
-                    ...player,
-                    hand: addCardToHand(player.hand, drawnCard),
-                  }
-                : player,
-            ),
-            stacks: {
-              ...currentGame.stacks,
-              [source]: result.remaining,
-            },
-          }
-        : currentGame,
-    )
+    dispatchGameAction({
+      type: 'draw-wild-card',
+      playerId: activePlayer.id,
+      stack: source,
+    })
   }
 
   const discardFromActiveHand = (cardId: string) => {
@@ -521,11 +596,11 @@ function App() {
       return
     }
 
-    setGame((currentGame) =>
-      currentGame
-        ? discardCardFromPlayerHand(currentGame, activePlayer.id, cardId)
-        : currentGame,
-    )
+    dispatchGameAction({
+      type: 'discard-card',
+      playerId: activePlayer.id,
+      cardId,
+    })
   }
 
   const dragPiece = (event: React.DragEvent<HTMLElement>, payload: DragPayload) => {
@@ -629,27 +704,16 @@ function App() {
     }
   }
 
-  const consumePlayerBoardFlippedSource = (
-    currentGame: GameState,
-    payload: Extract<DragPayload, { type: 'industry' }>,
-  ) =>
-    payload.tile.flipped && payload.sourcePlayerBoardPlayerId && payload.sourcePlayerBoardTileId
-      ? consumeFlippedPlayerBoardIndustryTile(
-          currentGame,
-          payload.sourcePlayerBoardPlayerId,
-          payload.sourcePlayerBoardTileId,
-        )
-      : currentGame
-
   const flipIndustryAtSpace = (spaceId: string) => {
-    setGame((currentGame) =>
-      currentGame
-        ? {
-            ...currentGame,
-            board: flipIndustryTile(currentGame.board, spaceId),
-          }
-        : currentGame,
-    )
+    if (!activePlayer) {
+      return
+    }
+
+    dispatchGameAction({
+      type: 'flip-industry-tile',
+      playerId: activePlayer.id,
+      spaceId,
+    })
   }
 
   const dropOnIndustrySpace = (
@@ -659,44 +723,30 @@ function App() {
     event.preventDefault()
     const payload = JSON.parse(event.dataTransfer.getData('application/json')) as DragPayload
 
-    if (!game) {
+    if (!game || !activePlayer) {
       return
     }
 
     if (payload.type === 'industry') {
-      setGame((currentGame) => {
-        if (!currentGame) {
-          return currentGame
-        }
-
-        const board = payload.sourceSpaceId
-          ? moveIndustryTile(
-              currentGame.board,
-              payload.sourceSpaceId,
+      dispatchGameAction(
+        payload.sourceSpaceId
+          ? {
+              type: 'move-industry-tile',
+              playerId: activePlayer.id,
+              sourceSpaceId: payload.sourceSpaceId,
+              targetSpaceId: spaceId,
+              tile: payload.tile,
+            }
+          : {
+              type: 'place-industry-tile',
+              playerId: activePlayer.id,
               spaceId,
-              payload.tile,
-            )
-          : placeIndustryTile(currentGame.board, spaceId, payload.tile)
-
-        const nextGame = {
-          ...currentGame,
-          board,
-        }
-
-        if (board === currentGame.board) {
-          return nextGame
-        }
-
-        const withoutDevelopedSource = payload.sourceDevelopedPlayerId
-          ? removeDevelopedIndustryTile(
-              nextGame,
-              payload.sourceDevelopedPlayerId,
-              payload.tile.id,
-            )
-          : nextGame
-
-        return consumePlayerBoardFlippedSource(withoutDevelopedSource, payload)
-      })
+              tile: payload.tile,
+              sourceDevelopedPlayerId: payload.sourceDevelopedPlayerId,
+              sourcePlayerBoardPlayerId: payload.sourcePlayerBoardPlayerId,
+              sourcePlayerBoardTileId: payload.sourcePlayerBoardTileId,
+            },
+      )
       return
     }
 
@@ -704,39 +754,24 @@ function App() {
       return
     }
 
-    setGame((currentGame) => {
-      if (!currentGame || payload.cube.sourceIndustrySpaceId === spaceId) {
-        return currentGame
-      }
+    if (payload.cube.sourceIndustrySpaceId === spaceId) {
+      return
+    }
 
-      const nextBoard = placeIndustryResourceCube(currentGame.board, spaceId, {
+    dispatchGameAction({
+      type: 'place-industry-resource',
+      playerId: activePlayer.id,
+      spaceId,
+      cube: {
         id: payload.cube.id,
         kind: payload.cube.kind,
         spaceId,
-      })
-
-      if (nextBoard === currentGame.board) {
-        return currentGame
-      }
-
-      const withoutMarketSource = payload.cube.sourceSpaceId
-        ? removeMarketResourceCube(nextBoard, payload.cube.sourceSpaceId)
-        : nextBoard
-      const withoutBeerSource = payload.cube.sourceBeerSpaceId
-        ? removeBeerResourceCube(withoutMarketSource, payload.cube.sourceBeerSpaceId)
-        : withoutMarketSource
-      const withoutIndustrySource = payload.cube.sourceIndustrySpaceId
-        ? removeIndustryResourceCube(
-            withoutBeerSource,
-            payload.cube.sourceIndustrySpaceId,
-            payload.cube.id,
-          )
-        : withoutBeerSource
-
-      return {
-        ...currentGame,
-        board: withoutIndustrySource,
-      }
+      },
+      source: {
+        beerSpaceId: payload.cube.sourceBeerSpaceId,
+        industrySpaceId: payload.cube.sourceIndustrySpaceId,
+        marketSpaceId: payload.cube.sourceSpaceId,
+      },
     })
   }
 
@@ -747,28 +782,26 @@ function App() {
     event.preventDefault()
     const payload = JSON.parse(event.dataTransfer.getData('application/json')) as DragPayload
 
-    if (!game || payload.type !== 'link' || payload.tile.kind !== activeEraLinkKind) {
+    if (!game || !activePlayer || payload.type !== 'link' || payload.tile.kind !== activeEraLinkKind) {
       return
     }
 
-    setGame((currentGame) => {
-      if (!currentGame) {
-        return currentGame
-      }
-
-      const nextBoard = payload.sourceSpaceId
-        ? moveLinkTile(currentGame.board, payload.sourceSpaceId, spaceId, payload.tile)
-        : placeLinkTile(currentGame.board, spaceId, payload.tile)
-
-      if (nextBoard === currentGame.board) {
-        return currentGame
-      }
-
-      return {
-        ...currentGame,
-        board: nextBoard,
-      }
-    })
+    dispatchGameAction(
+      payload.sourceSpaceId
+        ? {
+            type: 'move-link-tile',
+            playerId: activePlayer.id,
+            sourceSpaceId: payload.sourceSpaceId,
+            targetSpaceId: spaceId,
+            tile: payload.tile,
+          }
+        : {
+            type: 'place-link-tile',
+            playerId: activePlayer.id,
+            spaceId,
+            tile: payload.tile,
+          },
+    )
   }
 
   const dropOnMarketResourceSpace = (
@@ -778,37 +811,23 @@ function App() {
     event.preventDefault()
     const payload = JSON.parse(event.dataTransfer.getData('application/json')) as DragPayload
 
-    if (!game || payload.type !== 'market-resource') {
+    if (!game || !activePlayer || payload.type !== 'market-resource') {
       return
     }
 
-    setGame((currentGame) => {
-      if (!currentGame) {
-        return currentGame
-      }
-
-      const nextBoard = moveResourceCubeToMarket(
-        currentGame.board,
+    dispatchGameAction({
+      type: 'move-resource-to-market',
+      playerId: activePlayer.id,
+      spaceId,
+      cube: {
+        id: payload.cube.id,
+        kind: payload.cube.kind,
         spaceId,
-        {
-          id: payload.cube.id,
-          kind: payload.cube.kind,
-          spaceId,
-        },
-        {
-          industrySpaceId: payload.cube.sourceIndustrySpaceId,
-          marketSpaceId: payload.cube.sourceSpaceId,
-        },
-      )
-
-      if (nextBoard === currentGame.board) {
-        return currentGame
-      }
-
-      return {
-        ...currentGame,
-        board: nextBoard,
-      }
+      },
+      source: {
+        industrySpaceId: payload.cube.sourceIndustrySpaceId,
+        marketSpaceId: payload.cube.sourceSpaceId,
+      },
     })
   }
 
@@ -819,38 +838,28 @@ function App() {
     event.preventDefault()
     const payload = JSON.parse(event.dataTransfer.getData('application/json')) as DragPayload
 
-    if (!game || payload.type !== 'market-resource') {
+    if (!game || !activePlayer || payload.type !== 'market-resource') {
       return
     }
 
-    setGame((currentGame) => {
-      if (!currentGame || payload.cube.sourceBeerSpaceId === spaceId) {
-        return currentGame
-      }
+    if (payload.cube.sourceBeerSpaceId === spaceId) {
+      return
+    }
 
-      const nextBoard = moveResourceCubeToBeer(
-        currentGame.board,
+    dispatchGameAction({
+      type: 'move-resource-to-beer',
+      playerId: activePlayer.id,
+      spaceId,
+      cube: {
+        id: payload.cube.id,
+        kind: payload.cube.kind,
         spaceId,
-        {
-          id: payload.cube.id,
-          kind: payload.cube.kind,
-          spaceId,
-        },
-        {
-          beerSpaceId: payload.cube.sourceBeerSpaceId,
-          industrySpaceId: payload.cube.sourceIndustrySpaceId,
-          marketSpaceId: payload.cube.sourceSpaceId,
-        },
-      )
-
-      if (nextBoard === currentGame.board) {
-        return currentGame
-      }
-
-      return {
-        ...currentGame,
-        board: nextBoard,
-      }
+      },
+      source: {
+        beerSpaceId: payload.cube.sourceBeerSpaceId,
+        industrySpaceId: payload.cube.sourceIndustrySpaceId,
+        marketSpaceId: payload.cube.sourceSpaceId,
+      },
     })
   }
 
@@ -860,6 +869,7 @@ function App() {
 
     if (
       !game ||
+      !activePlayer ||
       payload.type !== 'market-resource' ||
       (!payload.cube.sourceSpaceId &&
         !payload.cube.sourceIndustrySpaceId &&
@@ -868,26 +878,32 @@ function App() {
       return
     }
 
-    const sourceSpaceId = payload.cube.sourceSpaceId
-    const sourceIndustrySpaceId = payload.cube.sourceIndustrySpaceId
-    const sourceBeerSpaceId = payload.cube.sourceBeerSpaceId
+    if (payload.cube.sourceSpaceId) {
+      dispatchGameAction({
+        type: 'remove-market-resource',
+        playerId: activePlayer.id,
+        spaceId: payload.cube.sourceSpaceId,
+      })
+      return
+    }
 
-    setGame((currentGame) =>
-      currentGame
-        ? {
-            ...currentGame,
-            board: sourceSpaceId
-              ? removeMarketResourceCube(currentGame.board, sourceSpaceId)
-              : sourceBeerSpaceId
-                ? removeBeerResourceCube(currentGame.board, sourceBeerSpaceId)
-                : removeIndustryResourceCube(
-                    currentGame.board,
-                    sourceIndustrySpaceId ?? '',
-                    payload.cube.id,
-                  ),
-          }
-        : currentGame,
-    )
+    if (payload.cube.sourceBeerSpaceId) {
+      dispatchGameAction({
+        type: 'remove-beer-resource',
+        playerId: activePlayer.id,
+        spaceId: payload.cube.sourceBeerSpaceId,
+      })
+      return
+    }
+
+    if (payload.cube.sourceIndustrySpaceId) {
+      dispatchGameAction({
+        type: 'remove-industry-resource',
+        playerId: activePlayer.id,
+        spaceId: payload.cube.sourceIndustrySpaceId,
+        cubeId: payload.cube.id,
+      })
+    }
   }
 
   const dropOnIncomeTrackSpace = (
@@ -897,7 +913,11 @@ function App() {
     event.preventDefault()
     const payload = JSON.parse(event.dataTransfer.getData('application/json')) as DragPayload
 
-    if (!game || (payload.type !== 'income-marker' && payload.type !== 'victory-point-marker')) {
+    if (
+      !game ||
+      !activePlayer ||
+      (payload.type !== 'income-marker' && payload.type !== 'victory-point-marker')
+    ) {
       return
     }
 
@@ -911,9 +931,13 @@ function App() {
     const currentValue = field === 'income' ? player.income : player.victoryPoints
     const delta = trackValue - currentValue
 
-    setGame((currentGame) =>
-      currentGame ? updatePlayerScore(currentGame, payload.playerId, field, delta) : currentGame,
-    )
+    dispatchGameAction({
+      type: 'update-player-score',
+      playerId: activePlayer.id,
+      targetPlayerId: payload.playerId,
+      field,
+      delta,
+    })
   }
 
   const dropOnDevelopedIndustries = (event: React.DragEvent<HTMLDivElement>) => {
@@ -922,6 +946,7 @@ function App() {
 
     if (
       !game ||
+      !activePlayer ||
       payload.type !== 'industry' ||
       payload.sourceDevelopedPlayerId ||
       !payload.tile.tileId ||
@@ -930,21 +955,13 @@ function App() {
       return
     }
 
-    setGame((currentGame) => {
-      if (!currentGame) {
-        return currentGame
-      }
-
-      const withRemovedSource = payload.sourceSpaceId
-        ? {
-            ...currentGame,
-            board: removeIndustryTile(currentGame.board, payload.sourceSpaceId),
-          }
-        : currentGame
-
-      const withDevelopedTile = developIndustryTile(withRemovedSource, payload.tile.ownerId, payload.tile)
-
-      return consumePlayerBoardFlippedSource(withDevelopedTile, payload)
+    dispatchGameAction({
+      type: 'develop-industry-tile',
+      playerId: activePlayer.id,
+      tile: payload.tile,
+      sourceSpaceId: payload.sourceSpaceId,
+      sourcePlayerBoardPlayerId: payload.sourcePlayerBoardPlayerId,
+      sourcePlayerBoardTileId: payload.sourcePlayerBoardTileId,
     })
   }
 
@@ -954,6 +971,7 @@ function App() {
 
     if (
       !game ||
+      !activePlayer ||
       payload.type !== 'industry' ||
       !payload.tile.tileId ||
       (!payload.sourceDevelopedPlayerId && !payload.sourceSpaceId)
@@ -961,53 +979,46 @@ function App() {
       return
     }
 
-    setGame((currentGame) => {
-      if (!currentGame) {
-        return currentGame
-      }
-
-      const withRemovedSource = payload.sourceDevelopedPlayerId
-        ? removeDevelopedIndustryTile(currentGame, payload.sourceDevelopedPlayerId, payload.tile.id)
-        : payload.sourceSpaceId
-          ? {
-              ...currentGame,
-              board: removeIndustryTile(currentGame.board, payload.sourceSpaceId),
-            }
-          : currentGame
-
-      return payload.tile.flipped && payload.tile.tileId
-        ? restoreFlippedPlayerBoardIndustryTile(
-            withRemovedSource,
-            payload.tile.ownerId,
-            payload.tile.tileId,
-          )
-        : withRemovedSource
+    dispatchGameAction({
+      type: 'return-industry-tile-to-player-board',
+      playerId: activePlayer.id,
+      tile: payload.tile,
+      sourceDevelopedPlayerId: payload.sourceDevelopedPlayerId,
+      sourceSpaceId: payload.sourceSpaceId,
     })
   }
 
   const removeResourceCubeFromBoard = (cube: ResourceCubeDragPayload) => {
-    setGame((currentGame) =>
-      currentGame && cube.sourceSpaceId
-        ? {
-            ...currentGame,
-            board: removeMarketResourceCube(currentGame.board, cube.sourceSpaceId),
-          }
-        : currentGame && cube.sourceBeerSpaceId
-          ? {
-              ...currentGame,
-              board: removeBeerResourceCube(currentGame.board, cube.sourceBeerSpaceId),
-            }
-        : currentGame && cube.sourceIndustrySpaceId
-          ? {
-              ...currentGame,
-              board: removeIndustryResourceCube(
-                currentGame.board,
-                cube.sourceIndustrySpaceId,
-                cube.id,
-              ),
-            }
-          : currentGame,
-    )
+    if (!activePlayer) {
+      return
+    }
+
+    if (cube.sourceSpaceId) {
+      dispatchGameAction({
+        type: 'remove-market-resource',
+        playerId: activePlayer.id,
+        spaceId: cube.sourceSpaceId,
+      })
+      return
+    }
+
+    if (cube.sourceBeerSpaceId) {
+      dispatchGameAction({
+        type: 'remove-beer-resource',
+        playerId: activePlayer.id,
+        spaceId: cube.sourceBeerSpaceId,
+      })
+      return
+    }
+
+    if (cube.sourceIndustrySpaceId) {
+      dispatchGameAction({
+        type: 'remove-industry-resource',
+        playerId: activePlayer.id,
+        spaceId: cube.sourceIndustrySpaceId,
+        cubeId: cube.id,
+      })
+    }
   }
 
   const removeMarketCubeWhenDraggedOffBoard = (
@@ -1048,14 +1059,15 @@ function App() {
       event.clientY > boardRect.bottom
 
     if (wasDroppedOutsideBoard) {
-      setGame((currentGame) =>
-        currentGame
-          ? {
-              ...currentGame,
-              board: removeLinkTile(currentGame.board, sourceSpaceId),
-            }
-          : currentGame,
-      )
+      if (!activePlayer) {
+        return
+      }
+
+      dispatchGameAction({
+        type: 'remove-link-tile',
+        playerId: activePlayer.id,
+        spaceId: sourceSpaceId,
+      })
     }
   }
 
@@ -1076,14 +1088,15 @@ function App() {
       event.clientY > boardRect.bottom
 
     if (wasDroppedOutsideBoard) {
-      setGame((currentGame) =>
-        currentGame
-          ? {
-              ...currentGame,
-              board: removeIndustryTile(currentGame.board, sourceSpaceId),
-            }
-          : currentGame,
-      )
+      if (!activePlayer) {
+        return
+      }
+
+      dispatchGameAction({
+        type: 'remove-industry-tile',
+        playerId: activePlayer.id,
+        spaceId: sourceSpaceId,
+      })
     }
   }
 
@@ -1096,9 +1109,17 @@ function App() {
       return
     }
 
-    setGame((currentGame) =>
-      currentGame ? updatePlayerScore(currentGame, playerId, field, delta) : currentGame,
-    )
+    if (!activePlayer) {
+      return
+    }
+
+    dispatchGameAction({
+      type: 'update-player-score',
+      playerId: activePlayer.id,
+      targetPlayerId: playerId,
+      field,
+      delta,
+    })
   }
 
   const adjustActivePlayerMoney = (delta: number) => {
@@ -1106,9 +1127,11 @@ function App() {
       return
     }
 
-    setGame((currentGame) =>
-      currentGame ? updatePlayerMoney(currentGame, activePlayer.id, delta) : currentGame,
-    )
+    dispatchGameAction({
+      type: 'update-player-money',
+      playerId: activePlayer.id,
+      delta,
+    })
   }
 
   const adjustActivePlayerRoundSpending = (delta: number) => {
@@ -1116,11 +1139,11 @@ function App() {
       return
     }
 
-    setGame((currentGame) =>
-      currentGame
-        ? updatePlayerRoundSpending(currentGame, activePlayer.id, delta)
-        : currentGame,
-    )
+    dispatchGameAction({
+      type: 'update-player-round-spending',
+      playerId: activePlayer.id,
+      delta,
+    })
   }
 
   const flipActivePlayerDevelopedTile = (tileId: string) => {
@@ -1128,9 +1151,11 @@ function App() {
       return
     }
 
-    setGame((currentGame) =>
-      currentGame ? flipDevelopedIndustryTile(currentGame, activePlayer.id, tileId) : currentGame,
-    )
+    dispatchGameAction({
+      type: 'flip-developed-industry-tile',
+      playerId: activePlayer.id,
+      tileId,
+    })
   }
 
   const flipActivePlayerBoardTile = (tileId: string) => {
@@ -1138,30 +1163,65 @@ function App() {
       return
     }
 
-    setGame((currentGame) =>
-      currentGame ? flipPlayerBoardIndustryTile(currentGame, activePlayer.id, tileId) : currentGame,
+    dispatchGameAction({
+      type: 'flip-player-board-industry-tile',
+      playerId: activePlayer.id,
+      tileId,
+    })
+  }
+
+  if (onlineRoom && !game) {
+    const currentRoomPlayer = onlineRoom.players.find((player) => player.clientId === onlineClientId)
+    const canStartOnlineRoom =
+      Boolean(currentRoomPlayer?.isHost) && onlineRoom.players.length === onlineRoom.playerCount
+
+    return (
+      <main className="title-screen">
+        <section className="title-card online-lobby" aria-labelledby="online-lobby-heading">
+          <p className="eyebrow">Online room</p>
+          <h2 id="online-lobby-heading">Room {onlineRoom.roomCode}</h2>
+          <p className="lede">
+            Share this code with your friends. The host can start once every seat is filled.
+          </p>
+          {onlineError ? <p className="online-status online-status--error">{onlineError}</p> : null}
+          <div className="online-seat-list" aria-label="Online room seats">
+            {Array.from({ length: onlineRoom.playerCount }).map((_, index) => {
+              const player = onlineRoom.players[index]
+
+              return (
+                <article className="online-seat-card" key={player?.playerId ?? `empty-${index}`}>
+                  <p className="eyebrow">Seat {index + 1}</p>
+                  <h3>{player?.name ?? 'Waiting for player'}</h3>
+                  {player?.isHost ? <span>Host</span> : null}
+                  {player?.clientId === onlineClientId ? <strong>Your seat</strong> : null}
+                </article>
+              )
+            })}
+          </div>
+          <div className="title-actions">
+            <button disabled={!canStartOnlineRoom} onClick={startOnlineRoom} type="button">
+              Start Online Game
+            </button>
+            <button onClick={returnToTitle} type="button">
+              Back to Title
+            </button>
+          </div>
+        </section>
+        <AltMagnifierOverlay {...magnifier} />
+      </main>
     )
   }
 
   if (!game) {
     return (
       <main className="title-screen">
-        <section className="title-card" aria-labelledby="title-screen-heading">
-          <p className="eyebrow">Offline local game</p>
-          <h2 id="title-screen-heading">Brass: Birmingham</h2>
-          <p className="lede">
-            Choose the player count once. After the game starts, the player count
-            is locked and you control every player locally.
-          </p>
-          <div className="title-actions" aria-label="Start game player count">
-            {playerCounts.map((count) => (
-              <button key={count} onClick={() => startGame(count)} type="button">
-                Start {count}-player game
-              </button>
-            ))}
-          </div>
-          <HelpPanel />
-        </section>
+        <TitleScreen
+          onBackToModes={() => setOnlineError(null)}
+          onHostOnlineGame={hostOnlineGame}
+          onJoinOnlineGame={joinOnlineGame}
+          onStartOfflineGame={startGame}
+        />
+        {onlineError ? <p className="online-status online-status--error">{onlineError}</p> : null}
         <AltMagnifierOverlay {...magnifier} />
       </main>
     )
@@ -1171,8 +1231,14 @@ function App() {
     <main className="app-shell">
       <section className="controls-panel" aria-label="Locked game setup">
         <div>
-          <p className="eyebrow">Game setup locked</p>
-          <h2>{game.playerCount} local players</h2>
+          <p className="eyebrow">{onlineRoom ? `Online room ${onlineRoom.roomCode}` : 'Game setup locked'}</p>
+          <h2>{game.playerCount} {onlineRoom ? 'online players' : 'local players'}</h2>
+          {onlineRoom ? (
+            <p className="online-turn-note">
+              You are {game.players.find((player) => player.id === onlinePlayerId)?.name ?? 'a player'}.
+              {canUseActivePlayerControls ? ' It is your turn.' : ` Waiting for ${activePlayer?.name}.`}
+            </p>
+          ) : null}
         </div>
         <div className="player-buttons" aria-label="Active local player">
           {game.players.map((player, index) => (
@@ -1204,7 +1270,7 @@ function App() {
                 <span>VP</span>
                 <button
                   aria-label={`Decrease ${player.name} VP`}
-                  disabled={isGameEnded}
+                  disabled={!canUseActivePlayerControls}
                   onClick={() => adjustPlayerScore(player.id, 'victoryPoints', -1)}
                   type="button"
                 >
@@ -1213,7 +1279,7 @@ function App() {
                 <strong>{player.victoryPoints}</strong>
                 <button
                   aria-label={`Increase ${player.name} VP`}
-                  disabled={isGameEnded}
+                  disabled={!canUseActivePlayerControls}
                   onClick={() => adjustPlayerScore(player.id, 'victoryPoints', 1)}
                   type="button"
                 >
@@ -1224,7 +1290,7 @@ function App() {
                 <span>Income</span>
                 <button
                   aria-label={`Decrease ${player.name} income`}
-                  disabled={isGameEnded}
+                  disabled={!canUseActivePlayerControls}
                   onClick={() => adjustPlayerScore(player.id, 'income', -1)}
                   type="button"
                 >
@@ -1233,7 +1299,7 @@ function App() {
                 <strong>{player.income}</strong>
         <button
                   aria-label={`Increase ${player.name} income`}
-                  disabled={isGameEnded}
+                  disabled={!canUseActivePlayerControls}
                   onClick={() => adjustPlayerScore(player.id, 'income', 1)}
           type="button"
         >
@@ -1270,7 +1336,7 @@ function App() {
                     const canUseTile =
                       remainingCount > 0 &&
                       isPlayerBoardIndustryTileUsable(tile.id, activePlayerRemainingTileCounts)
-                    const canFlipTile = remainingCount > 0
+                    const canFlipTile = remainingCount > 0 && canUseActivePlayerControls
 
                     return (
                       <button
@@ -1280,8 +1346,8 @@ function App() {
                         } ${
                           !canUseTile && remainingCount > 0 ? 'is-blocked' : ''
                         }`}
-                        disabled={remainingCount === 0}
-                        draggable={canUseTile}
+                        disabled={remainingCount === 0 || !canUseActivePlayerControls}
+                        draggable={canUseTile && canUseActivePlayerControls}
                         key={tile.id}
                         onDoubleClick={(event) => {
                           event.stopPropagation()
@@ -1291,7 +1357,7 @@ function App() {
                           }
                         }}
                         onDragStart={(event) => {
-                          if (!canUseTile) {
+                          if (!canUseTile || !canUseActivePlayerControls) {
                             event.preventDefault()
                             return
                           }
@@ -1334,7 +1400,7 @@ function App() {
                   {[-10, -5, -1, 1, 5, 10].map((delta) => (
                     <button
                       aria-label={`${delta > 0 ? 'Increase' : 'Decrease'} ${activePlayer?.name} money by ${Math.abs(delta)}`}
-                      disabled={isGameEnded}
+                      disabled={!canUseActivePlayerControls}
                       key={delta}
                       onClick={() => adjustActivePlayerMoney(delta)}
                       type="button"
@@ -1349,7 +1415,7 @@ function App() {
                   {[-10, -5, -1, 1, 5, 10].map((delta) => (
                     <button
                       aria-label={`${delta > 0 ? 'Increase' : 'Decrease'} ${activePlayer?.name} round spending by ${Math.abs(delta)}`}
-                      disabled={isGameEnded}
+                      disabled={!canUseActivePlayerControls}
                       key={delta}
                       onClick={() => adjustActivePlayerRoundSpending(delta)}
                       type="button"
@@ -1379,7 +1445,7 @@ function App() {
                     Pass turn
                   </button>
                   <button
-                    disabled={!turnStartSnapshot || isGameEnded}
+                    disabled={!turnStartSnapshot || isGameEnded || isOnlineGame}
                     onClick={resetActiveTurn}
                     type="button"
                   >
@@ -1395,7 +1461,7 @@ function App() {
                 <button
                   aria-label={`Build ${activeEraLinkKind} link`}
                   className="palette-tile palette-tile--link link-era-panel__tile"
-                  draggable={!isGameEnded}
+                  draggable={canUseActivePlayerControls}
                   onDragStart={(event) =>
                     dragPiece(event, {
                       type: 'link',
@@ -1433,7 +1499,7 @@ function App() {
                     <button
                       aria-label={`Move developed or outdated ${tile.industry}`}
                       className={`developed-industry-tile ${tile.flipped ? 'is-flipped' : ''}`}
-                      draggable
+                      draggable={canUseActivePlayerControls}
                       key={tile.id}
                       onDoubleClick={(event) => {
                         event.stopPropagation()
@@ -1461,7 +1527,7 @@ function App() {
               {resourceCubeKinds.map((kind) => (
                 <button
                   className={`resource-cube-button resource-cube-button--${kind}`}
-                  draggable
+                  draggable={canUseActivePlayerControls}
                   key={kind}
                   onDragStart={(event) =>
                     dragPiece(event, {
@@ -1522,7 +1588,7 @@ function App() {
                     <div className="board-overlay-card__hud">
                       <button
                         disabled={
-                          isGameEnded ||
+                          !canUseActivePlayerControls ||
                           !activePlayer ||
                           activePlayer.hand.length >= HAND_LIMIT ||
                           stackCount === 0
@@ -1567,7 +1633,7 @@ function App() {
                     <span
                       aria-label={`${player.name} income marker`}
                       className="income-marker"
-                      draggable={!isGameEnded}
+                      draggable={canUseActivePlayerControls}
                       key={`income-${player.id}`}
                       onDragStart={(event) =>
                         dragPiece(event, {
@@ -1585,7 +1651,7 @@ function App() {
                     <span
                       aria-label={`${player.name} VP marker`}
                       className="victory-point-marker"
-                      draggable={!isGameEnded}
+                      draggable={canUseActivePlayerControls}
                       key={`victory-points-${player.id}`}
                       onDragStart={(event) =>
                         dragPiece(event, {
@@ -1624,7 +1690,7 @@ function App() {
                     <button
                       aria-label={`Move ${space.kind} cube from ${space.label}`}
                       className={`market-cube-button market-cube-button--${space.kind}`}
-                      draggable
+                      draggable={canUseActivePlayerControls}
                       onClick={(event) => event.stopPropagation()}
                       onDragStart={(event) =>
                         dragPiece(event, {
@@ -1671,7 +1737,7 @@ function App() {
                     <button
                       aria-label={`Move beer cube from ${space.label}`}
                       className="market-cube-button market-cube-button--beer"
-                      draggable
+                      draggable={canUseActivePlayerControls}
                       onClick={(event) => event.stopPropagation()}
                       onDragEnd={(event) =>
                         removeMarketCubeWhenDraggedOffBoard(event, {
@@ -1735,7 +1801,9 @@ function App() {
               const placement = game.board.industryPlacements[space.id]
               const resources = game.board.industryResourcePlacements[space.id] ?? []
               const placementImageUrl = getIndustryPlacementImageUrl(placement)
-              const canDragIndustryTile = Boolean(placement && resources.length === 0)
+              const canDragIndustryTile = Boolean(
+                placement && resources.length === 0 && canUseActivePlayerControls,
+              )
               const canFlipIndustryTile = canDragIndustryTile
 
               return (
@@ -1794,7 +1862,7 @@ function App() {
                         <span
                           aria-label={`Move ${cube.kind} cube from ${space.id}`}
                           className={`market-cube-button market-cube-button--${cube.kind}`}
-                          draggable
+                          draggable={canUseActivePlayerControls}
                           key={cube.id}
                           onClick={(event) => event.stopPropagation()}
                           onDragEnd={(event) =>
@@ -1837,17 +1905,17 @@ function App() {
                   className={`board-space board-space--link ${
                     placement ? `is-occupied board-space--link-${placement.kind}` : ''
                   }`}
-                  draggable={Boolean(placement)}
+                  draggable={Boolean(placement && canUseActivePlayerControls)}
                   key={space.id}
                   onClick={(event) => event.stopPropagation()}
                   onDragEnd={(event) => {
-                    if (placement) {
+                    if (placement && canUseActivePlayerControls) {
                       removeLinkWhenDraggedOffBoard(event, space.id)
                     }
                   }}
                   onDragOver={(event) => event.preventDefault()}
                   onDragStart={(event) => {
-                    if (placement) {
+                    if (placement && canUseActivePlayerControls) {
                       dragPiece(event, {
                         type: 'link',
                         tile: placement,
@@ -1893,7 +1961,7 @@ function App() {
                 <CardFace card={handCard} />
                 <button
                   className="discard-card-button"
-                  disabled={isGameEnded}
+                  disabled={!canUseActivePlayerControls}
                   onClick={() => discardFromActiveHand(handCard.id)}
                   type="button"
                 >
