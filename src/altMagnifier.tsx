@@ -14,9 +14,10 @@ export type AltMagnifierState = {
 }
 
 const MAGNIFY_SELECTOR =
-  '.player-board-tile, .developed-industry-tile, .playing-card, .palette-link-icon, .link-piece-icon'
+  '.player-board-tile, .developed-industry-tile, .playing-card, .palette-link-icon, .link-piece-icon, .board-space--industry.has-tile-image, .board-space--link.is-occupied, .merchant-tile-face, .board-overlay-card, .market-cube-button, .income-marker, .victory-point-marker'
 
 const PLAYER_BOARD_LOUPE_SCALE = 2.5
+const GAME_BOARD_LOUPE_SCALE = 2.5
 
 type MagnifierPayload = {
   src: string
@@ -36,6 +37,29 @@ function getCssVarUrl(element: Element, varName: string): string | null {
   }
 
   return parseCssUrl(value) ?? value
+}
+
+function getCssVarColor(element: Element, varName: string): string | null {
+  const value = getComputedStyle(element).getPropertyValue(varName).trim()
+  return value || null
+}
+
+function getFirstBackgroundImageUrl(element: Element): string | null {
+  const backgroundImage = getComputedStyle(element).backgroundImage
+  if (!backgroundImage || backgroundImage === 'none') {
+    return null
+  }
+
+  return parseCssUrl(backgroundImage)
+}
+
+function createColorPreviewDataUrl(color: string, shape: 'circle' | 'diamond' = 'circle'): string {
+  const svg =
+    shape === 'diamond'
+      ? `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120"><polygon points="60,10 110,60 60,110 10,60" fill="${color}"/></svg>`
+      : `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120"><circle cx="60" cy="60" r="50" fill="${color}"/></svg>`
+
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`
 }
 
 export function getMagnifyPayload(target: Element): MagnifierPayload | null {
@@ -79,8 +103,81 @@ export function getMagnifyPayload(target: Element): MagnifierPayload | null {
     }
   }
 
-  const backgroundImage = getComputedStyle(target).backgroundImage
-  const backgroundUrl = parseCssUrl(backgroundImage)
+  if (target.classList.contains('board-space--industry') && target.classList.contains('has-tile-image')) {
+    const src = getCssVarUrl(target, '--industry-tile-image')
+    if (src) {
+      return {
+        src,
+        label: target.getAttribute('aria-label') ?? undefined,
+      }
+    }
+  }
+
+  if (target.classList.contains('board-space--link') && target.classList.contains('is-occupied')) {
+    const src = getCssVarUrl(target, '--link-tile-image')
+    if (src) {
+      return {
+        src,
+        label: target.getAttribute('aria-label') ?? undefined,
+      }
+    }
+  }
+
+  if (target.classList.contains('merchant-tile-face')) {
+    const merchantSpace = target.closest('.board-space--merchant')
+    const src = getFirstBackgroundImageUrl(target)
+    if (src) {
+      return {
+        src,
+        label: merchantSpace?.getAttribute('aria-label') ?? undefined,
+      }
+    }
+  }
+
+  if (target.classList.contains('board-overlay-card')) {
+    const face = target.querySelector('.board-overlay-card__face')
+    if (face) {
+      const src = getFirstBackgroundImageUrl(face)
+      if (src) {
+        return {
+          src,
+          label: target.getAttribute('title') ?? undefined,
+        }
+      }
+    }
+  }
+
+  if (target.classList.contains('market-cube-button')) {
+    const color = getComputedStyle(target).backgroundColor
+    const kind = Array.from(target.classList)
+      .find((className) => className.startsWith('market-cube-button--'))
+      ?.slice('market-cube-button--'.length)
+
+    if (color && color !== 'transparent' && color !== 'rgba(0, 0, 0, 0)') {
+      return {
+        src: createColorPreviewDataUrl(color),
+        label: kind ? `${kind} cube` : 'Resource cube',
+      }
+    }
+  }
+
+  if (
+    target.classList.contains('income-marker') ||
+    target.classList.contains('victory-point-marker')
+  ) {
+    const color =
+      getCssVarColor(target, '--owner-color') ?? getComputedStyle(target).backgroundColor
+    const shape = target.classList.contains('victory-point-marker') ? 'diamond' : 'circle'
+
+    if (color && color !== 'transparent' && color !== 'rgba(0, 0, 0, 0)') {
+      return {
+        src: createColorPreviewDataUrl(color, shape),
+        label: target.getAttribute('aria-label') ?? undefined,
+      }
+    }
+  }
+
+  const backgroundUrl = getFirstBackgroundImageUrl(target)
   if (backgroundUrl) {
     return {
       src: backgroundUrl,
@@ -94,20 +191,24 @@ export function getMagnifyPayload(target: Element): MagnifierPayload | null {
   return null
 }
 
-export function getPlayerBoardLoupePayload(
+function getBoardLoupePayload(
   clientX: number,
   clientY: number,
+  surfaceSelector: string,
+  skipSelector: string | null,
+  scale: number,
+  fallbackLabel: string,
 ): MagnifierPayload | null {
   const hoveredElement = document.elementFromPoint(clientX, clientY)
-  if (!hoveredElement?.closest('.player-board-surface')) {
+  if (!hoveredElement?.closest(surfaceSelector)) {
     return null
   }
 
-  if (hoveredElement.closest('.player-board-tile')) {
+  if (skipSelector && hoveredElement.closest(skipSelector)) {
     return null
   }
 
-  const surface = hoveredElement.closest('.player-board-surface')
+  const surface = hoveredElement.closest(surfaceSelector)
   const boardImage = surface?.querySelector('img')
   if (!(boardImage instanceof HTMLImageElement) || !boardImage.src) {
     return null
@@ -126,13 +227,41 @@ export function getPlayerBoardLoupePayload(
 
   return {
     src: boardImage.currentSrc || boardImage.src,
-    label: boardImage.alt || 'Player board',
+    label: boardImage.alt || fallbackLabel,
     region: {
       x: xRatio * 100,
       y: yRatio * 100,
-      scale: PLAYER_BOARD_LOUPE_SCALE,
+      scale,
     },
   }
+}
+
+export function getPlayerBoardLoupePayload(
+  clientX: number,
+  clientY: number,
+): MagnifierPayload | null {
+  return getBoardLoupePayload(
+    clientX,
+    clientY,
+    '.player-board-surface',
+    '.player-board-tile',
+    PLAYER_BOARD_LOUPE_SCALE,
+    'Player board',
+  )
+}
+
+export function getGameBoardLoupePayload(
+  clientX: number,
+  clientY: number,
+): MagnifierPayload | null {
+  return getBoardLoupePayload(
+    clientX,
+    clientY,
+    '.board-map',
+    null,
+    GAME_BOARD_LOUPE_SCALE,
+    'Game board',
+  )
 }
 
 export function findMagnifyTarget(element: Element | null): Element | null {
@@ -154,10 +283,13 @@ function getMagnifierPayloadAtPoint(clientX: number, clientY: number): Magnifier
   const target = findMagnifyTarget(hoveredElement)
 
   if (target) {
-    return getMagnifyPayload(target)
+    const payload = getMagnifyPayload(target)
+    if (payload) {
+      return payload
+    }
   }
 
-  return getPlayerBoardLoupePayload(clientX, clientY)
+  return getPlayerBoardLoupePayload(clientX, clientY) ?? getGameBoardLoupePayload(clientX, clientY)
 }
 
 function getPayloadKey(payload: MagnifierPayload): string {

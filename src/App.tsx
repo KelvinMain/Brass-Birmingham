@@ -302,9 +302,9 @@ function HelpPanel() {
           <article className="help-panel__item">
             <h3>Magnify details</h3>
             <p>
-              Hold <kbd>Alt</kbd> and hover tiles, cards, link icons, or empty areas on the player
-              board. A larger preview appears in the bottom-right corner. Release <kbd>Alt</kbd> to
-              close it.
+              Hold <kbd>Alt</kbd> and hover tiles, cards, link icons, board pieces, or open areas
+              on the player board and main game board. A larger preview appears in the
+              bottom-right corner. Release <kbd>Alt</kbd> to close it.
             </p>
           </article>
           <article className="help-panel__item">
