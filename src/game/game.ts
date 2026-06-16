@@ -24,6 +24,7 @@ export type LocalPlayer = {
   hand: GameCard[]
   handLimit: typeof HAND_LIMIT
   money: number
+  moneySpentThisRound: number
   victoryPoints: number
   income: number
   developedIndustries: IndustryTilePlacement[]
@@ -78,6 +79,16 @@ export function getRequiredEndTurnHandSize(game: GameState): number {
   return Math.max(0, game.turnStartHandCount - 2)
 }
 
+export function getTurnOrderSpendLabel(game: GameState, playerIndex: number): string {
+  const player = game.players[playerIndex]
+
+  if (!player || playerIndex > game.activePlayerIndex) {
+    return ''
+  }
+
+  return String(player.moneySpentThisRound)
+}
+
 function drawStandardCardsToHand(
   hand: GameCard[],
   standardStack: StandardCard[],
@@ -99,6 +110,23 @@ function applyRoundIncome(players: LocalPlayer[]): LocalPlayer[] {
     ...player,
     money: player.money + getIncomeMoneyDelta(player.income),
   }))
+}
+
+function orderPlayersForNextRound(players: LocalPlayer[]): LocalPlayer[] {
+  return players
+    .map((player, previousOrderIndex) => ({
+      player,
+      previousOrderIndex,
+    }))
+    .sort(
+      (left, right) =>
+        left.player.moneySpentThisRound - right.player.moneySpentThisRound ||
+        left.previousOrderIndex - right.previousOrderIndex,
+    )
+    .map(({ player }) => ({
+      ...player,
+      moneySpentThisRound: 0,
+    }))
 }
 
 function areStandardCardsAndHandsExhausted(game: GameState): boolean {
@@ -150,14 +178,14 @@ function completeRound(game: GameState, options: PassTurnOptions): GameState {
     return dealRailEraCards(
       {
         ...game,
-        players: applyRoundIncome(game.players),
+        players: orderPlayersForNextRound(applyRoundIncome(game.players)),
         roundNumber: game.roundNumber + 1,
       },
       railDeck,
     )
   }
 
-  const players = applyRoundIncome(game.players)
+  const players = orderPlayersForNextRound(applyRoundIncome(game.players))
 
   return {
     ...game,
@@ -217,6 +245,7 @@ export function createGameState(
     hand: [],
     handLimit: HAND_LIMIT,
     money: 17,
+    moneySpentThisRound: 0,
     victoryPoints: 0,
     income: STARTING_INCOME_TRACK,
     developedIndustries: [],
@@ -431,6 +460,28 @@ export function updatePlayerMoney(game: GameState, playerId: string, delta: numb
         ? {
             ...player,
             money: player.money + delta,
+          }
+        : player,
+    ),
+  }
+}
+
+export function updatePlayerRoundSpending(
+  game: GameState,
+  playerId: string,
+  delta: number,
+): GameState {
+  if (!game.players.some((player) => player.id === playerId)) {
+    return game
+  }
+
+  return {
+    ...game,
+    players: game.players.map((player) =>
+      player.id === playerId
+        ? {
+            ...player,
+            moneySpentThisRound: Math.max(0, player.moneySpentThisRound + delta),
           }
         : player,
     ),

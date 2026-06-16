@@ -7,6 +7,7 @@ import {
   getBoardPointFromClientPosition,
   getVisibleMerchantTilePlacements,
   type IndustrySpace,
+  incomeTrackSpaces,
   type LinkKind,
   type LinkSpace,
   industrySpaces,
@@ -33,6 +34,7 @@ import {
   updateBeerResourceSpaceCalibration,
   updateBoardControlSpaceCalibration,
   updateIndustrySpaceCalibration,
+  updateIncomeTrackSpaceCalibration,
   updateLinkSpaceCalibration,
   updateMarketResourceSpaceCalibration,
   updateMerchantTileSpaceCalibration,
@@ -163,6 +165,7 @@ describe('Brass: Birmingham board placement', () => {
     expect(marketResourceSpaces).toHaveLength(24)
     expect(beerResourceSpaces).toHaveLength(9)
     expect(merchantTileSpaces).toHaveLength(9)
+    expect(incomeTrackSpaces).toHaveLength(100)
     expect(industrySpaces.find((space) => space.id === 'belper-1')).toMatchObject({
       city: 'Belper',
       allowedIndustries: ['cotton', 'manufacturer'],
@@ -283,6 +286,20 @@ describe('Brass: Birmingham board placement', () => {
       'manufacturer',
       'cotton',
     ])
+  })
+
+  it('defines income track spaces from 0 through 99', () => {
+    expect(incomeTrackSpaces.map((space) => space.value)).toEqual(
+      Array.from({ length: 100 }, (_, index) => index),
+    )
+    expect(incomeTrackSpaces[0]).toMatchObject({
+      id: 'income-0',
+      value: 0,
+    })
+    expect(incomeTrackSpaces[99]).toMatchObject({
+      id: 'income-99',
+      value: 99,
+    })
   })
 
   it('initializes two-player merchant tiles on the five always-used merchant spots', () => {
@@ -937,6 +954,16 @@ describe('Brass: Birmingham board placement', () => {
     ).toMatchObject({
       x: 42.5,
       y: 61.25,
+    })
+    expect(
+      updateIncomeTrackSpaceCalibration(incomeTrackSpaces, 'income-42', {
+        x: 12.25,
+        y: 34.5,
+      }).find((space) => space.id === 'income-42'),
+    ).toMatchObject({
+      x: 12.25,
+      y: 34.5,
+      value: 42,
     })
   })
 

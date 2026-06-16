@@ -76,6 +76,11 @@ export type MerchantTileSpace = BoardPoint & {
   merchantIndex: number
 }
 
+export type IncomeTrackSpace = BoardPoint & {
+  id: string
+  value: number
+}
+
 export type MerchantTileKind = 'all' | 'cotton' | 'manufacturer' | 'none' | 'pottery'
 
 export type MerchantTile = {
@@ -143,6 +148,609 @@ export const boardControlSpaces: BoardControlSpace[] = [
     x: 13.98,
     y: 43.17,
   },
+]
+
+export const incomeTrackSpaces: IncomeTrackSpace[] = [
+  {
+    "id": "income-0",
+    "value": 0,
+    "x": 1.67,
+    "y": 92.9
+  },
+  {
+    "id": "income-1",
+    "value": 1,
+    "x": 1.67,
+    "y": 89.31
+  },
+  {
+    "id": "income-2",
+    "value": 2,
+    "x": 1.67,
+    "y": 85.73
+  },
+  {
+    "id": "income-3",
+    "value": 3,
+    "x": 1.67,
+    "y": 82.14
+  },
+  {
+    "id": "income-4",
+    "value": 4,
+    "x": 1.67,
+    "y": 78.55
+  },
+  {
+    "id": "income-5",
+    "value": 5,
+    "x": 1.67,
+    "y": 74.97
+  },
+  {
+    "id": "income-6",
+    "value": 6,
+    "x": 1.67,
+    "y": 71.38
+  },
+  {
+    "id": "income-7",
+    "value": 7,
+    "x": 1.67,
+    "y": 67.79
+  },
+  {
+    "id": "income-8",
+    "value": 8,
+    "x": 1.67,
+    "y": 64.2
+  },
+  {
+    "id": "income-9",
+    "value": 9,
+    "x": 1.67,
+    "y": 60.62
+  },
+  {
+    "id": "income-10",
+    "value": 10,
+    "x": 1.67,
+    "y": 57.03
+  },
+  {
+    "id": "income-11",
+    "value": 11,
+    "x": 1.42,
+    "y": 52.71
+  },
+  {
+    "id": "income-12",
+    "value": 12,
+    "x": 1.62,
+    "y": 49.78
+  },
+  {
+    "id": "income-13",
+    "value": 13,
+    "x": 1.62,
+    "y": 45.58
+  },
+  {
+    "id": "income-14",
+    "value": 14,
+    "x": 1.62,
+    "y": 42.65
+  },
+  {
+    "id": "income-15",
+    "value": 15,
+    "x": 1.62,
+    "y": 38.25
+  },
+  {
+    "id": "income-16",
+    "value": 16,
+    "x": 1.62,
+    "y": 35.52
+  },
+  {
+    "id": "income-17",
+    "value": 17,
+    "x": 1.62,
+    "y": 31.51
+  },
+  {
+    "id": "income-18",
+    "value": 18,
+    "x": 1.62,
+    "y": 28.49
+  },
+  {
+    "id": "income-19",
+    "value": 19,
+    "x": 1.62,
+    "y": 24.29
+  },
+  {
+    "id": "income-20",
+    "value": 20,
+    "x": 1.62,
+    "y": 21.16
+  },
+  {
+    "id": "income-21",
+    "value": 21,
+    "x": 1.62,
+    "y": 17.06
+  },
+  {
+    "id": "income-22",
+    "value": 22,
+    "x": 1.62,
+    "y": 14.13
+  },
+  {
+    "id": "income-23",
+    "value": 23,
+    "x": 1.62,
+    "y": 10.26
+  },
+  {
+    "id": "income-24",
+    "value": 24,
+    "x": 1.62,
+    "y": 7.1
+  },
+  {
+    "id": "income-25",
+    "value": 25,
+    "x": 6.5,
+    "y": 1.57
+  },
+  {
+    "id": "income-26",
+    "value": 26,
+    "x": 9.53,
+    "y": 1.57
+  },
+  {
+    "id": "income-27",
+    "value": 27,
+    "x": 13.44,
+    "y": 1.57
+  },
+  {
+    "id": "income-28",
+    "value": 28,
+    "x": 16.56,
+    "y": 1.37
+  },
+  {
+    "id": "income-29",
+    "value": 29,
+    "x": 20.66,
+    "y": 1.57
+  },
+  {
+    "id": "income-30",
+    "value": 30,
+    "x": 23.88,
+    "y": 1.66
+  },
+  {
+    "id": "income-31",
+    "value": 31,
+    "x": 29.06,
+    "y": 1.66
+  },
+  {
+    "id": "income-32",
+    "value": 32,
+    "x": 31.89,
+    "y": 1.57
+  },
+  {
+    "id": "income-33",
+    "value": 33,
+    "x": 34.82,
+    "y": 1.57
+  },
+  {
+    "id": "income-34",
+    "value": 34,
+    "x": 40.49,
+    "y": 1.66
+  },
+  {
+    "id": "income-35",
+    "value": 35,
+    "x": 43.42,
+    "y": 1.66
+  },
+  {
+    "id": "income-36",
+    "value": 36,
+    "x": 46.54,
+    "y": 1.57
+  },
+  {
+    "id": "income-37",
+    "value": 37,
+    "x": 52.11,
+    "y": 1.57
+  },
+  {
+    "id": "income-38",
+    "value": 38,
+    "x": 55.33,
+    "y": 1.57
+  },
+  {
+    "id": "income-39",
+    "value": 39,
+    "x": 57.97,
+    "y": 1.47
+  },
+  {
+    "id": "income-40",
+    "value": 40,
+    "x": 63.73,
+    "y": 1.66
+  },
+  {
+    "id": "income-41",
+    "value": 41,
+    "x": 66.66,
+    "y": 1.47
+  },
+  {
+    "id": "income-42",
+    "value": 42,
+    "x": 69.69,
+    "y": 1.57
+  },
+  {
+    "id": "income-43",
+    "value": 43,
+    "x": 75.64,
+    "y": 1.57
+  },
+  {
+    "id": "income-44",
+    "value": 44,
+    "x": 78.48,
+    "y": 1.47
+  },
+  {
+    "id": "income-45",
+    "value": 45,
+    "x": 81.31,
+    "y": 1.57
+  },
+  {
+    "id": "income-46",
+    "value": 46,
+    "x": 87.07,
+    "y": 1.47
+  },
+  {
+    "id": "income-47",
+    "value": 47,
+    "x": 89.9,
+    "y": 1.57
+  },
+  {
+    "id": "income-48",
+    "value": 48,
+    "x": 92.93,
+    "y": 1.57
+  },
+  {
+    "id": "income-49",
+    "value": 49,
+    "x": 98.49,
+    "y": 8.29
+  },
+  {
+    "id": "income-50",
+    "value": 50,
+    "x": 98.4,
+    "y": 11.22
+  },
+  {
+    "id": "income-51",
+    "value": 51,
+    "x": 98.49,
+    "y": 14.15
+  },
+  {
+    "id": "income-52",
+    "value": 52,
+    "x": 98.49,
+    "y": 19.82
+  },
+  {
+    "id": "income-53",
+    "value": 53,
+    "x": 98.49,
+    "y": 22.65
+  },
+  {
+    "id": "income-54",
+    "value": 54,
+    "x": 98.49,
+    "y": 25.68
+  },
+  {
+    "id": "income-55",
+    "value": 55,
+    "x": 98.49,
+    "y": 31.44
+  },
+  {
+    "id": "income-56",
+    "value": 56,
+    "x": 98.59,
+    "y": 34.37
+  },
+  {
+    "id": "income-57",
+    "value": 57,
+    "x": 98.49,
+    "y": 37.39
+  },
+  {
+    "id": "income-58",
+    "value": 58,
+    "x": 98.4,
+    "y": 43.06
+  },
+  {
+    "id": "income-59",
+    "value": 59,
+    "x": 98.49,
+    "y": 46.09
+  },
+  {
+    "id": "income-60",
+    "value": 60,
+    "x": 98.49,
+    "y": 49.02
+  },
+  {
+    "id": "income-61",
+    "value": 61,
+    "x": 98.3,
+    "y": 54.7
+  },
+  {
+    "id": "income-62",
+    "value": 62,
+    "x": 98.3,
+    "y": 57.53
+  },
+  {
+    "id": "income-63",
+    "value": 63,
+    "x": 98.49,
+    "y": 60.46
+  },
+  {
+    "id": "income-64",
+    "value": 64,
+    "x": 98.59,
+    "y": 63.19
+  },
+  {
+    "id": "income-65",
+    "value": 65,
+    "x": 98.49,
+    "y": 68.85
+  },
+  {
+    "id": "income-66",
+    "value": 66,
+    "x": 98.49,
+    "y": 71.79
+  },
+  {
+    "id": "income-67",
+    "value": 67,
+    "x": 98.49,
+    "y": 74.72
+  },
+  {
+    "id": "income-68",
+    "value": 68,
+    "x": 98.4,
+    "y": 77.55
+  },
+  {
+    "id": "income-69",
+    "value": 69,
+    "x": 98.4,
+    "y": 83.24
+  },
+  {
+    "id": "income-70",
+    "value": 70,
+    "x": 98.49,
+    "y": 86.18
+  },
+  {
+    "id": "income-71",
+    "value": 71,
+    "x": 98.4,
+    "y": 88.9
+  },
+  {
+    "id": "income-72",
+    "value": 72,
+    "x": 98.3,
+    "y": 91.83
+  },
+  {
+    "id": "income-73",
+    "value": 73,
+    "x": 93.22,
+    "y": 98.37
+  },
+  {
+    "id": "income-74",
+    "value": 74,
+    "x": 90.29,
+    "y": 98.28
+  },
+  {
+    "id": "income-75",
+    "value": 75,
+    "x": 87.36,
+    "y": 98.2
+  },
+  {
+    "id": "income-76",
+    "value": 76,
+    "x": 84.33,
+    "y": 98.48
+  },
+  {
+    "id": "income-77",
+    "value": 77,
+    "x": 79.74,
+    "y": 98.38
+  },
+  {
+    "id": "income-78",
+    "value": 78,
+    "x": 76.81,
+    "y": 98.46
+  },
+  {
+    "id": "income-79",
+    "value": 79,
+    "x": 73.89,
+    "y": 98.46
+  },
+  {
+    "id": "income-80",
+    "value": 80,
+    "x": 71.15,
+    "y": 98.48
+  },
+  {
+    "id": "income-81",
+    "value": 81,
+    "x": 66.17,
+    "y": 98.39
+  },
+  {
+    "id": "income-82",
+    "value": 82,
+    "x": 63.24,
+    "y": 98.4
+  },
+  {
+    "id": "income-83",
+    "value": 83,
+    "x": 60.41,
+    "y": 98.51
+  },
+  {
+    "id": "income-84",
+    "value": 84,
+    "x": 57.58,
+    "y": 98.34
+  },
+  {
+    "id": "income-85",
+    "value": 85,
+    "x": 52.89,
+    "y": 98.38
+  },
+  {
+    "id": "income-86",
+    "value": 86,
+    "x": 49.96,
+    "y": 98.45
+  },
+  {
+    "id": "income-87",
+    "value": 87,
+    "x": 47.22,
+    "y": 98.27
+  },
+  {
+    "id": "income-88",
+    "value": 88,
+    "x": 44.3,
+    "y": 98.38
+  },
+  {
+    "id": "income-89",
+    "value": 89,
+    "x": 39.41,
+    "y": 98.46
+  },
+  {
+    "id": "income-90",
+    "value": 90,
+    "x": 36.48,
+    "y": 98.28
+  },
+  {
+    "id": "income-91",
+    "value": 91,
+    "x": 33.85,
+    "y": 98.48
+  },
+  {
+    "id": "income-92",
+    "value": 92,
+    "x": 30.92,
+    "y": 98.5
+  },
+  {
+    "id": "income-93",
+    "value": 93,
+    "x": 25.64,
+    "y": 98.4
+  },
+  {
+    "id": "income-94",
+    "value": 94,
+    "x": 22.71,
+    "y": 98.47
+  },
+  {
+    "id": "income-95",
+    "value": 95,
+    "x": 19.98,
+    "y": 98.39
+  },
+  {
+    "id": "income-96",
+    "value": 96,
+    "x": 17.05,
+    "y": 98.5
+  },
+  {
+    "id": "income-97",
+    "value": 97,
+    "x": 12.46,
+    "y": 98.39
+  },
+  {
+    "id": "income-98",
+    "value": 98,
+    "x": 9.53,
+    "y": 98.39
+  },
+  {
+    "id": "income-99",
+    "value": 99,
+    "x": 6.5,
+    "y": 98.37
+  }
 ]
 
 export const marketResourceSpaces: MarketResourceSpace[] = [
@@ -1647,6 +2255,21 @@ export function updateMerchantTileSpaceCalibration(
   )
 }
 
+export function updateIncomeTrackSpaceCalibration(
+  spaces: IncomeTrackSpace[],
+  spaceId: string,
+  point: BoardPoint,
+): IncomeTrackSpace[] {
+  return spaces.map((space) =>
+    space.id === spaceId
+      ? {
+          ...space,
+          ...point,
+        }
+      : space,
+  )
+}
+
 export function placeIndustryTile(
   state: BoardState,
   spaceId: string,
@@ -1672,8 +2295,10 @@ export function removeIndustryTile(state: BoardState, spaceId: string): BoardSta
     return state
   }
 
-  const { [spaceId]: _removedTile, ...industryPlacements } = state.industryPlacements
-  const { [spaceId]: _removedResources, ...industryResourcePlacements } = state.industryResourcePlacements
+  const industryPlacements = { ...state.industryPlacements }
+  const industryResourcePlacements = { ...state.industryResourcePlacements }
+  delete industryPlacements[spaceId]
+  delete industryResourcePlacements[spaceId]
 
   return {
     ...state,
@@ -1698,10 +2323,11 @@ export function moveIndustryTile(
     return state
   }
 
-  const { [sourceSpaceId]: _removedTile, ...industryPlacements } = nextState.industryPlacements
+  const industryPlacements = { ...nextState.industryPlacements }
   const sourceResources = state.industryResourcePlacements[sourceSpaceId]
-  const { [sourceSpaceId]: _removedResources, ...industryResourcePlacements } =
-    nextState.industryResourcePlacements
+  const industryResourcePlacements = { ...nextState.industryResourcePlacements }
+  delete industryPlacements[sourceSpaceId]
+  delete industryResourcePlacements[sourceSpaceId]
 
   return {
     ...nextState,
@@ -1763,7 +2389,8 @@ export function removeLinkTile(state: BoardState, spaceId: string): BoardState {
     return state
   }
 
-  const { [spaceId]: _removed, ...linkPlacements } = state.linkPlacements
+  const linkPlacements = { ...state.linkPlacements }
+  delete linkPlacements[spaceId]
 
   return {
     ...state,
@@ -1894,7 +2521,8 @@ export function removeBeerResourceCube(state: BoardState, spaceId: string): Boar
     return state
   }
 
-  const { [spaceId]: _removed, ...beerResourcePlacements } = state.beerResourcePlacements
+  const beerResourcePlacements = { ...state.beerResourcePlacements }
+  delete beerResourcePlacements[spaceId]
 
   return {
     ...state,
@@ -1964,7 +2592,8 @@ export function removeMarketResourceCube(state: BoardState, spaceId: string): Bo
     return state
   }
 
-  const { [spaceId]: _removed, ...marketResourcePlacements } = state.marketResourcePlacements
+  const marketResourcePlacements = { ...state.marketResourcePlacements }
+  delete marketResourcePlacements[spaceId]
 
   return {
     ...state,

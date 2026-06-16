@@ -8,9 +8,9 @@ import {
   beerResourceSpaces,
   boardControlSpaces,
   flipIndustryTile,
-  getBoardPointFromClientPosition,
   getVisibleMerchantTilePlacements,
   industrySpaces,
+  incomeTrackSpaces,
   linkSpaces,
   marketResourceSpaces,
   merchantTileSpaces,
@@ -27,7 +27,6 @@ import {
   removeLinkTile,
   removeMarketResourceCube,
   resourceCubeKinds,
-  updateMerchantTileSpaceCalibration,
 } from './game/board'
 import type {
   BeerResourceSpace,
@@ -35,7 +34,6 @@ import type {
   LinkTilePlacement,
   MarketResourcePlacement,
   MarketResourceSpace,
-  MerchantTileSpace,
 } from './game/board'
 import {
   addCardToHand,
@@ -53,10 +51,12 @@ import {
   flipDevelopedIndustryTile,
   flipPlayerBoardIndustryTile,
   getRequiredEndTurnHandSize,
+  getTurnOrderSpendLabel,
   passTurn,
   removeDevelopedIndustryTile,
   restoreFlippedPlayerBoardIndustryTile,
   updatePlayerMoney,
+  updatePlayerRoundSpending,
   updatePlayerScore,
 } from './game/game'
 import type { GameState, PlayerColor } from './game/game'
@@ -66,16 +66,15 @@ import {
   isPlayerBoardIndustryTileUsable,
   isPlayerBoardTileDevelopable,
   playerBoardIndustryTiles,
-  updatePlayerBoardTileCalibration,
 } from './game/playerBoard'
-import type { PlayerBoardIndustryTile, PlayerBoardTileAssetColor } from './game/playerBoard'
-
-type StackKey = keyof DrawableStacks
+import type { PlayerBoardTileAssetColor } from './game/playerBoard'
 
 type CardStyle = CSSProperties & {
   '--card-face-image'?: string
   '--card-tint'?: string
 }
+
+type WildStackKey = Exclude<keyof DrawableStacks, 'standard'>
 
 type BoardPieceStyle = CSSProperties & {
   '--industry-tile-image'?: string
@@ -259,22 +258,20 @@ type DragPayload =
       type: 'market-resource'
       cube: ResourceCubeDragPayload
     }
+  | {
+      type: 'income-marker'
+      playerId: string
+    }
+  | {
+      type: 'victory-point-marker'
+      playerId: string
+    }
 
 type ResourceCubeDragPayload = Omit<MarketResourcePlacement, 'spaceId'> & {
   sourceBeerSpaceId?: string
   sourceIndustrySpaceId?: string
   sourceSpaceId?: string
 }
-
-type CalibrationTarget =
-  | {
-      type: 'merchant'
-      id: string
-    }
-  | {
-      type: 'player-board-tile'
-      id: string
-    }
 
 function createShuffledGameState(playerCount: PlayerCount): GameState {
   return createGameState(playerCount, shuffleDeck(getDeckForPlayerCount(playerCount)))
@@ -340,36 +337,18 @@ function CardFace({ card }: { card: GameCard }) {
   )
 }
 
-function formatMerchantTileSpacesForExport(spaces: MerchantTileSpace[]): string {
-  return `export const merchantTileSpaces: MerchantTileSpace[] = ${JSON.stringify(spaces, null, 2)}`
-}
-
-function formatPlayerBoardIndustryTilesForExport(tiles: PlayerBoardIndustryTile[]): string {
-  return `export const playerBoardIndustryTiles: PlayerBoardIndustryTile[] = ${JSON.stringify(tiles, null, 2)}`
-}
-
 function App() {
   const [game, setGame] = useState<GameState | null>(null)
   const [turnStartSnapshot, setTurnStartSnapshot] = useState<GameState | null>(null)
   const boardMapRef = useRef<HTMLDivElement | null>(null)
-  const [calibrationMode, setCalibrationMode] = useState(false)
-  const [calibrationTarget, setCalibrationTarget] = useState<CalibrationTarget>({
-    type: 'merchant',
-    id: merchantTileSpaces[0].id,
-  })
   const calibratedIndustrySpaces = industrySpaces
   const calibratedLinkSpaces = linkSpaces
   const calibratedBoardControlSpaces = boardControlSpaces
   const [calibratedMarketResourceSpaces] = useState<MarketResourceSpace[]>(marketResourceSpaces)
   const [calibratedBeerResourceSpaces] = useState<BeerResourceSpace[]>(beerResourceSpaces)
-  const [calibratedMerchantTileSpaces, setCalibratedMerchantTileSpaces] =
-    useState<MerchantTileSpace[]>(merchantTileSpaces)
-  const [calibratedPlayerBoardIndustryTiles, setCalibratedPlayerBoardIndustryTiles] =
-    useState<PlayerBoardIndustryTile[]>(playerBoardIndustryTiles)
-  const [lastCalibrationPoint, setLastCalibrationPoint] = useState<{
-    x: number
-    y: number
-  } | null>(null)
+  const calibratedMerchantTileSpaces = merchantTileSpaces
+  const calibratedIncomeTrackSpaces = incomeTrackSpaces
+  const calibratedPlayerBoardIndustryTiles = playerBoardIndustryTiles
 
   const activePlayerIndex = game?.activePlayerIndex ?? 0
   const activePlayer = game?.players[activePlayerIndex]
@@ -421,7 +400,6 @@ function App() {
 
     return getScannedLinkImageUrl(owner?.color, placement.kind)
   }
-  const isHandFull = activePlayer ? activePlayer.hand.length >= HAND_LIMIT : false
   const visibleMerchantTilePlacements = game
     ? getVisibleMerchantTilePlacements(game.board)
     : {}
@@ -467,17 +445,15 @@ function App() {
     setGame(turnStartSnapshot)
   }
 
-  const drawFrom = (source: StackKey) => {
-    if (!game || !activePlayer || isHandFull || isGameEnded) {
+  const takeWildCardFrom = (source: WildStackKey) => {
+    if (!game || !activePlayer || activePlayer.hand.length >= HAND_LIMIT || isGameEnded) {
       return
     }
 
     const result =
-      source === 'standard'
-        ? drawFromStack(game.stacks.standard)
-        : source === 'wildLocation'
-          ? drawFromStack(game.stacks.wildLocation)
-          : drawFromStack(game.stacks.wildIndustry)
+      source === 'wildLocation'
+        ? drawFromStack(game.stacks.wildLocation)
+        : drawFromStack(game.stacks.wildIndustry)
 
     if (!result.drawn) {
       return
@@ -489,8 +465,8 @@ function App() {
       currentGame
         ? {
             ...currentGame,
-            players: currentGame.players.map((player, index) =>
-              index === activePlayerIndex
+            players: currentGame.players.map((player) =>
+              player.id === activePlayer.id
                 ? {
                     ...player,
                     hand: addCardToHand(player.hand, drawnCard),
@@ -579,6 +555,43 @@ function App() {
         event.dataTransfer.setDragImage(dragImage, 28, 28)
         window.setTimeout(() => dragImage.remove(), 0)
       }
+    }
+
+    if (payload.type === 'income-marker') {
+      const owner = game?.players.find((player) => player.id === payload.playerId)
+      const dragImage = document.createElement('span')
+      dragImage.style.background = owner ? playerColorStyles[owner.color].color : '#f2c16c'
+      dragImage.style.border = '0'
+      dragImage.style.borderRadius = '999px'
+      dragImage.style.boxShadow = '0 4px 10px rgba(0, 0, 0, 0.42)'
+      dragImage.style.height = '20px'
+      dragImage.style.left = '-9999px'
+      dragImage.style.position = 'fixed'
+      dragImage.style.top = '-9999px'
+      dragImage.style.width = '20px'
+      document.body.append(dragImage)
+      event.dataTransfer.setDragImage(dragImage, 10, 10)
+      window.setTimeout(() => dragImage.remove(), 0)
+    }
+
+    if (payload.type === 'victory-point-marker') {
+      const owner = game?.players.find((player) => player.id === payload.playerId)
+      const ownerColor = owner ? playerColorStyles[owner.color].color : '#f2c16c'
+      const dragImage = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon')
+
+      dragImage.setAttribute('height', '24')
+      dragImage.setAttribute('viewBox', '0 0 24 24')
+      dragImage.setAttribute('width', '24')
+      dragImage.style.left = '-9999px'
+      dragImage.style.position = 'fixed'
+      dragImage.style.top = '-9999px'
+      polygon.setAttribute('fill', ownerColor)
+      polygon.setAttribute('points', '12 1 23 12 12 23 1 12')
+      dragImage.append(polygon)
+      document.body.append(dragImage)
+      event.dataTransfer.setDragImage(dragImage, 12, 12)
+      window.setTimeout(() => dragImage.remove(), 0)
     }
   }
 
@@ -843,6 +856,32 @@ function App() {
     )
   }
 
+  const dropOnIncomeTrackSpace = (
+    event: React.DragEvent<HTMLButtonElement>,
+    trackValue: number,
+  ) => {
+    event.preventDefault()
+    const payload = JSON.parse(event.dataTransfer.getData('application/json')) as DragPayload
+
+    if (!game || (payload.type !== 'income-marker' && payload.type !== 'victory-point-marker')) {
+      return
+    }
+
+    const player = game.players.find((currentPlayer) => currentPlayer.id === payload.playerId)
+
+    if (!player) {
+      return
+    }
+
+    const field = payload.type === 'income-marker' ? 'income' : 'victoryPoints'
+    const currentValue = field === 'income' ? player.income : player.victoryPoints
+    const delta = trackValue - currentValue
+
+    setGame((currentGame) =>
+      currentGame ? updatePlayerScore(currentGame, payload.playerId, field, delta) : currentGame,
+    )
+  }
+
   const dropOnDevelopedIndustries = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault()
     const payload = JSON.parse(event.dataTransfer.getData('application/json')) as DragPayload
@@ -1038,6 +1077,18 @@ function App() {
     )
   }
 
+  const adjustActivePlayerRoundSpending = (delta: number) => {
+    if (!activePlayer || isGameEnded) {
+      return
+    }
+
+    setGame((currentGame) =>
+      currentGame
+        ? updatePlayerRoundSpending(currentGame, activePlayer.id, delta)
+        : currentGame,
+    )
+  }
+
   const flipActivePlayerDevelopedTile = (tileId: string) => {
     if (!activePlayer) {
       return
@@ -1058,59 +1109,12 @@ function App() {
     )
   }
 
-  const setCalibrationTargetFromValue = (value: string) => {
-    const [type, id] = value.split(':') as [CalibrationTarget['type'], string]
-
-    setCalibrationTarget({ type, id } as CalibrationTarget)
-  }
-
-  const calibrateBoardClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (!calibrationMode) {
-      return
-    }
-
-    const point = getBoardPointFromClientPosition(
-      event.currentTarget.getBoundingClientRect(),
-      event.clientX,
-      event.clientY,
-    )
-    setLastCalibrationPoint(point)
-
-    if (calibrationTarget.type === 'merchant') {
-      setCalibratedMerchantTileSpaces((spaces) =>
-        updateMerchantTileSpaceCalibration(spaces, calibrationTarget.id, point),
-      )
-    }
-  }
-
-  const calibratePlayerBoardClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (!calibrationMode || calibrationTarget.type !== 'player-board-tile') {
-      return
-    }
-
-    const point = getBoardPointFromClientPosition(
-      event.currentTarget.getBoundingClientRect(),
-      event.clientX,
-      event.clientY,
-    )
-    setLastCalibrationPoint(point)
-
-    setCalibratedPlayerBoardIndustryTiles((tiles) =>
-      updatePlayerBoardTileCalibration(tiles, calibrationTarget.id, point),
-    )
-  }
-
-  const calibrationExport = [
-    formatMerchantTileSpacesForExport(calibratedMerchantTileSpaces),
-    formatPlayerBoardIndustryTilesForExport(calibratedPlayerBoardIndustryTiles),
-  ].join('\n\n')
-
   if (!game) {
     return (
       <main className="title-screen">
         <section className="title-card" aria-labelledby="title-screen-heading">
           <p className="eyebrow">Offline local game</p>
-          <h1 id="title-screen-heading">Brass: Birmingham</h1>
+          <h2 id="title-screen-heading">Brass: Birmingham</h2>
           <p className="lede">
             Choose the player count once. After the game starts, the player count
             is locked and you control every player locally.
@@ -1129,19 +1133,6 @@ function App() {
 
   return (
     <main className="app-shell">
-      <section className="hero-panel" aria-labelledby="page-title">
-        <div>
-          <p className="eyebrow">Offline setup module</p>
-          <h1 id="page-title">Brass: Birmingham card room</h1>
-        </div>
-
-        <div className="deck-tile" aria-label="Selected player draw deck">
-          <span className="deck-tile__label">{game.playerCount}P draw deck</span>
-          <strong>{game.stacks.standard.length}</strong>
-          <span>standard cards</span>
-        </div>
-      </section>
-
       <section className="controls-panel" aria-label="Locked game setup">
         <div>
           <p className="eyebrow">Game setup locked</p>
@@ -1217,59 +1208,11 @@ function App() {
       </section>
 
       <section className="panel board-panel" aria-label="Game board">
-        <div className="panel__header">
-          <p className="eyebrow">Board prototype</p>
-          <h2>Drag tiles onto the map</h2>
-        </div>
-
-        <div className="calibration-panel">
-          <div>
-            <p className="eyebrow">Calibration</p>
-            <h3>Click-to-position board pieces</h3>
-          </div>
-          <button
-            className={calibrationMode ? 'is-active' : ''}
-            onClick={() => setCalibrationMode((enabled) => !enabled)}
-            type="button"
-          >
-            {calibrationMode ? 'Calibration on' : 'Calibration off'}
-          </button>
-          <label>
-            Target
-            <select
-              onChange={(event) => setCalibrationTargetFromValue(event.target.value)}
-              value={`${calibrationTarget.type}:${calibrationTarget.id}`}
-            >
-              <optgroup label="Merchant tiles">
-                {calibratedMerchantTileSpaces.map((space) => (
-                  <option key={space.id} value={`merchant:${space.id}`}>
-                    {space.id}
-                  </option>
-                ))}
-              </optgroup>
-              <optgroup label="Player board tiles">
-                {calibratedPlayerBoardIndustryTiles.map((tile) => (
-                  <option key={tile.id} value={`player-board-tile:${tile.id}`}>
-                    {tile.id}
-                  </option>
-                ))}
-              </optgroup>
-            </select>
-          </label>
-          {lastCalibrationPoint ? (
-            <p className="calibration-point">
-              Last click: x {lastCalibrationPoint.x}, y {lastCalibrationPoint.y}
-            </p>
-          ) : null}
-        </div>
-
         <div className="board-layout">
           <aside className="tile-palette" aria-label="Draggable tile palette">
             <div className="player-board-panel">
-              <h3>{activePlayer?.name} board</h3>
               <div
-                className={`player-board-surface ${calibrationMode ? 'is-calibrating' : ''}`}
-                onClick={calibratePlayerBoardClick}
+                className="player-board-surface"
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={dropOnPlayerBoard}
               >
@@ -1347,17 +1290,30 @@ function App() {
                 </div>
               </div>
               <div className="player-money-panel" aria-label={`${activePlayer?.name} money`}>
-                <div className="player-money-panel__header">
+                <div className="player-money-row">
                   <span>Money</span>
                   <strong>{activePlayer?.money ?? 0}</strong>
-                </div>
-                <div className="player-money-panel__actions">
                   {[-10, -5, -1, 1, 5, 10].map((delta) => (
                     <button
                       aria-label={`${delta > 0 ? 'Increase' : 'Decrease'} ${activePlayer?.name} money by ${Math.abs(delta)}`}
                       disabled={isGameEnded}
                       key={delta}
                       onClick={() => adjustActivePlayerMoney(delta)}
+                      type="button"
+                    >
+                      {delta > 0 ? `+${delta}` : delta}
+                    </button>
+                  ))}
+                </div>
+                <div className="player-money-row">
+                  <span>Spent</span>
+                  <strong>{activePlayer?.moneySpentThisRound ?? 0}</strong>
+                  {[-10, -5, -1, 1, 5, 10].map((delta) => (
+                    <button
+                      aria-label={`${delta > 0 ? 'Increase' : 'Decrease'} ${activePlayer?.name} round spending by ${Math.abs(delta)}`}
+                      disabled={isGameEnded}
+                      key={delta}
+                      onClick={() => adjustActivePlayerRoundSpending(delta)}
                       type="button"
                     >
                       {delta > 0 ? `+${delta}` : delta}
@@ -1485,17 +1441,29 @@ function App() {
                 </button>
               ))}
             </div>
+            <div className="turn-order-panel" aria-label="Turn order">
+              <div className="turn-order-list">
+                {game.players.map((player, index) => (
+                  <span
+                    aria-label={`${player.name} spent ${getTurnOrderSpendLabel(game, index) || 'nothing shown'} this round`}
+                    className={index === activePlayerIndex ? 'is-active' : ''}
+                    key={player.id}
+                    style={getPlayerPieceStyle(player.id)}
+                    title={`${player.name}: spent ${player.moneySpentThisRound} this round`}
+                  >
+                    {getTurnOrderSpendLabel(game, index)}
+                  </span>
+                ))}
+              </div>
+            </div>
           </aside>
 
-          <div
-            className={`board-map ${calibrationMode ? 'is-calibrating' : ''}`}
-            onClick={calibrateBoardClick}
-            ref={boardMapRef}
-          >
+          <div className="board-map" ref={boardMapRef}>
             <img src="/src/assets/board/board.jpg" alt="Brass Birmingham board" />
 
             {calibratedBoardControlSpaces.map((space) => {
               const stackCount = game.stacks[space.stack].length
+              const canTakeWildCard = space.stack !== 'standard'
 
               return (
                 <div
@@ -1512,16 +1480,88 @@ function App() {
                 >
                   <div className="board-overlay-card__face" aria-hidden="true" />
                   <strong className="board-overlay-card-count">{stackCount}</strong>
-                  <div className="board-overlay-card__hud">
-                    <button
-                      disabled={isGameEnded || isHandFull || stackCount === 0}
-                      onClick={() => drawFrom(space.stack)}
-                      type="button"
-                    >
-                      {space.actionLabel}
-                    </button>
-                  </div>
+                  {canTakeWildCard ? (
+                    <div className="board-overlay-card__hud">
+                      <button
+                        disabled={
+                          isGameEnded ||
+                          !activePlayer ||
+                          activePlayer.hand.length >= HAND_LIMIT ||
+                          stackCount === 0
+                        }
+                        onClick={() => takeWildCardFrom(space.stack as WildStackKey)}
+                        type="button"
+                      >
+                        {space.actionLabel}
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
+              )
+            })}
+
+            {calibratedIncomeTrackSpaces.map((space) => {
+              const playersOnSpace = game.players.filter((player) => player.income === space.value)
+              const vpPlayersOnSpace = game.players.filter(
+                (player) => player.victoryPoints === space.value,
+              )
+
+              return (
+                <button
+                  aria-label={`Income ${space.value}`}
+                  className={`board-space board-space--income ${
+                    playersOnSpace.length > 0 || vpPlayersOnSpace.length > 0
+                      ? 'is-occupied'
+                      : 'is-calibration-only'
+                  }`}
+                  key={space.id}
+                  onClick={(event) => event.stopPropagation()}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => dropOnIncomeTrackSpace(event, space.value)}
+                  style={{
+                    left: `${space.x}%`,
+                    top: `${space.y}%`,
+                  }}
+                  title={`Income ${space.value}`}
+                  type="button"
+                >
+                  {playersOnSpace.map((player) => (
+                    <span
+                      aria-label={`${player.name} income marker`}
+                      className="income-marker"
+                      draggable={!isGameEnded}
+                      key={`income-${player.id}`}
+                      onDragStart={(event) =>
+                        dragPiece(event, {
+                          type: 'income-marker',
+                          playerId: player.id,
+                        })
+                      }
+                      role="button"
+                      style={getPlayerPieceStyle(player.id)}
+                      tabIndex={0}
+                      title={`${player.name}: income ${player.income}`}
+                    />
+                  ))}
+                  {vpPlayersOnSpace.map((player) => (
+                    <span
+                      aria-label={`${player.name} VP marker`}
+                      className="victory-point-marker"
+                      draggable={!isGameEnded}
+                      key={`victory-points-${player.id}`}
+                      onDragStart={(event) =>
+                        dragPiece(event, {
+                          type: 'victory-point-marker',
+                          playerId: player.id,
+                        })
+                      }
+                      role="button"
+                      style={getPlayerPieceStyle(player.id)}
+                      tabIndex={0}
+                      title={`${player.name}: ${player.victoryPoints} VP`}
+                    />
+                  ))}
+                </button>
               )
             })}
 
@@ -1622,7 +1662,7 @@ function App() {
             {calibratedMerchantTileSpaces.map((space) => {
               const placement = visibleMerchantTilePlacements[space.id]
 
-              if (!calibrationMode && !placement) {
+              if (!placement) {
                 return null
               }
 
@@ -1796,10 +1836,6 @@ function App() {
           </div>
         </div>
 
-        <details className="calibration-export">
-          <summary>Copy calibrated board arrays</summary>
-          <textarea readOnly value={calibrationExport} />
-        </details>
       </section>
 
       <section className="panel hand-panel" aria-label="My hand">

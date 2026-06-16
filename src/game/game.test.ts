@@ -8,12 +8,14 @@ import {
   flipDevelopedIndustryTile,
   getIncomeMoneyDelta,
   getRequiredEndTurnHandSize,
+  getTurnOrderSpendLabel,
   passTurn,
   flipPlayerBoardIndustryTile,
   restoreFlippedPlayerBoardIndustryTile,
   consumeFlippedPlayerBoardIndustryTile,
   removeDevelopedIndustryTile,
   updatePlayerMoney,
+  updatePlayerRoundSpending,
   updatePlayerScore,
 } from './game.ts'
 
@@ -103,7 +105,7 @@ describe('Brass: Birmingham game setup', () => {
     expect(game.players.every((player) => player.handLimit === HAND_LIMIT)).toBe(true)
   })
 
-  it('starts every local player with tracked VP and income counters', () => {
+  it('starts every local player with tracked VP, income, and round spending counters', () => {
     const game = createGameState(3)
 
     expect(
@@ -111,11 +113,12 @@ describe('Brass: Birmingham game setup', () => {
         id: player.id,
         victoryPoints: player.victoryPoints,
         income: player.income,
+        moneySpentThisRound: player.moneySpentThisRound,
       })),
     ).toEqual([
-      { id: 'player-1', victoryPoints: 0, income: 10 },
-      { id: 'player-2', victoryPoints: 0, income: 10 },
-      { id: 'player-3', victoryPoints: 0, income: 10 },
+      { id: 'player-1', victoryPoints: 0, income: 10, moneySpentThisRound: 0 },
+      { id: 'player-2', victoryPoints: 0, income: 10, moneySpentThisRound: 0 },
+      { id: 'player-3', victoryPoints: 0, income: 10, moneySpentThisRound: 0 },
     ])
   })
 
@@ -241,10 +244,32 @@ describe('Brass: Birmingham game setup', () => {
     })
   })
 
+  it('updates one player round spending without changing other players', () => {
+    const game = createGameState(2)
+    const afterSpend = updatePlayerRoundSpending(game, 'player-1', 7)
+    const afterRefund = updatePlayerRoundSpending(afterSpend, 'player-1', -2)
+    const afterBelowZero = updatePlayerRoundSpending(afterRefund, 'player-2', -3)
+
+    expect(afterBelowZero.players[0]).toMatchObject({
+      id: 'player-1',
+      moneySpentThisRound: 5,
+    })
+    expect(afterBelowZero.players[1]).toMatchObject({
+      id: 'player-2',
+      moneySpentThisRound: 0,
+    })
+  })
+
   it('ignores money updates for unknown players', () => {
     const game = createGameState(2)
 
     expect(updatePlayerMoney(game, 'missing-player', 1)).toEqual(game)
+  })
+
+  it('ignores round spending updates for unknown players', () => {
+    const game = createGameState(2)
+
+    expect(updatePlayerRoundSpending(game, 'missing-player', 1)).toEqual(game)
   })
 
   it('ignores score updates for unknown players', () => {
@@ -401,6 +426,83 @@ describe('Brass: Birmingham turn passing', () => {
     expect(afterRound.turnsTakenThisRound).toBe(0)
     expect(afterRound.activePlayerIndex).toBe(0)
     expect(afterRound.turnStartHandCount).toBe(HAND_LIMIT)
+  })
+
+  it('orders the next round by least money spent and preserves previous order for ties', () => {
+    const baseGame = createGameState(4)
+    const game = {
+      ...baseGame,
+      players: [baseGame.players[2], baseGame.players[0], baseGame.players[3], baseGame.players[1]].map(
+        (player) => ({
+          ...player,
+          hand: player.hand.slice(0, 7),
+          moneySpentThisRound:
+            player.id === 'player-1'
+              ? 5
+              : player.id === 'player-2'
+                ? 1
+                : player.id === 'player-3'
+                  ? 1
+                  : 8,
+        }),
+      ),
+    }
+
+    const afterOne = passTurn(game)
+    const afterTwo = passTurn(afterOne)
+    const afterThree = passTurn(afterTwo)
+    const afterRound = passTurn(afterThree)
+
+    expect(afterRound.players.map((player) => player.id)).toEqual([
+      'player-3',
+      'player-2',
+      'player-1',
+      'player-4',
+    ])
+    expect(afterRound.players.map((player) => player.moneySpentThisRound)).toEqual([0, 0, 0, 0])
+    expect(afterRound.activePlayerIndex).toBe(0)
+  })
+
+  it('moves the lowest spender first and keeps previous order for tied higher spenders', () => {
+    const baseGame = createGameState(3)
+    const game = {
+      ...baseGame,
+      players: baseGame.players.map((player, index) => ({
+        ...player,
+        hand: player.hand.slice(0, 7),
+        moneySpentThisRound: index === 1 ? 5 : 10,
+      })),
+    }
+
+    const afterOne = passTurn(game)
+    const afterTwo = passTurn(afterOne)
+    const afterRound = passTurn(afterTwo)
+
+    expect(afterRound.players.map((player) => player.id)).toEqual([
+      'player-2',
+      'player-1',
+      'player-3',
+    ])
+  })
+
+  it('shows spend labels only for players whose turn has started this round', () => {
+    const baseGame = createGameState(4)
+    const game = {
+      ...baseGame,
+      activePlayerIndex: 1,
+      turnsTakenThisRound: 1,
+      players: baseGame.players.map((player, index) => ({
+        ...player,
+        moneySpentThisRound: [4, 0, 7, 0][index],
+      })),
+    }
+
+    expect(game.players.map((_, index) => getTurnOrderSpendLabel(game, index))).toEqual([
+      '4',
+      '0',
+      '',
+      '',
+    ])
   })
 
   it('enters rail era after canal cards and hands are exhausted at round end', () => {
