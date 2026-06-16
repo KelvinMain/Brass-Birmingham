@@ -50,6 +50,7 @@ import { createMultiplayerClient } from './multiplayer/client'
 import type { MultiplayerClient } from './multiplayer/client'
 import type { ServerMessage } from './multiplayer/protocol'
 import type { RoomView } from './multiplayer/roomTypes'
+import { selectPlayerView } from './multiplayer/playerView'
 
 type CardStyle = CSSProperties & {
   '--card-face-image'?: string
@@ -370,8 +371,9 @@ function App() {
   const calibratedPlayerBoardIndustryTiles = playerBoardIndustryTiles
 
   const activePlayerIndex = game?.activePlayerIndex ?? 0
-  const activePlayer = game?.players[activePlayerIndex]
-  const otherPlayers = game?.players.filter((_, index) => index !== activePlayerIndex) ?? []
+  const { turnPlayer, viewedPlayer, viewedPlayerIndex } = selectPlayerView(game, onlinePlayerId)
+  const activePlayer = viewedPlayer
+  const otherPlayers = game?.players.filter((_, index) => index !== viewedPlayerIndex) ?? []
   const isGameEnded = game?.status === 'ended'
   const activeEraLinkKind: LinkTilePlacement['kind'] = game?.era === 'rail' ? 'rail' : 'canal'
   const activeEraLinkLabel = activeEraLinkKind === 'canal' ? 'Canal era' : 'Rail era'
@@ -379,7 +381,7 @@ function App() {
   const requiredEndTurnHandSize = game ? getRequiredEndTurnHandSize(game) : HAND_LIMIT
   const isOnlineGame = Boolean(onlineRoom)
   const canUseActivePlayerControls =
-    Boolean(activePlayer) && !isGameEnded && (!isOnlineGame || activePlayer?.id === onlinePlayerId)
+    Boolean(activePlayer) && !isGameEnded && (!isOnlineGame || turnPlayer?.id === onlinePlayerId)
   const canPassTurn =
     canUseActivePlayerControls &&
     Boolean(game && activePlayer && game.status === 'playing') &&
@@ -1235,15 +1237,17 @@ function App() {
           <h2>{game.playerCount} {onlineRoom ? 'online players' : 'local players'}</h2>
           {onlineRoom ? (
             <p className="online-turn-note">
-              You are {game.players.find((player) => player.id === onlinePlayerId)?.name ?? 'a player'}.
-              {canUseActivePlayerControls ? ' It is your turn.' : ` Waiting for ${activePlayer?.name}.`}
+              You are {activePlayer?.name ?? 'a player'}. Turn: {turnPlayer?.name ?? 'unknown'}.
+              {canUseActivePlayerControls ? ' It is your turn.' : ' Waiting for their move.'}
             </p>
           ) : null}
         </div>
-        <div className="player-buttons" aria-label="Active local player">
+        <div className="player-buttons" aria-label={onlineRoom ? 'Online turn indicator' : 'Active local player'}>
           {game.players.map((player, index) => (
             <button
-              className={index === activePlayerIndex ? 'is-active' : ''}
+              className={`${index === activePlayerIndex ? 'is-active' : ''} ${
+                onlineRoom && player.id === onlinePlayerId ? 'is-viewed-player' : ''
+              }`}
               disabled={index !== activePlayerIndex || isGameEnded}
               key={player.id}
               style={getPlayerPieceStyle(player.id)}
@@ -1566,7 +1570,7 @@ function App() {
             <img src="/src/assets/board/board.jpg" alt="Brass Birmingham board" />
 
             {calibratedBoardControlSpaces.map((space) => {
-              const stackCount = game.stacks[space.stack].length
+              const stackCount = onlineRoom?.stackCounts[space.stack] ?? game.stacks[space.stack].length
               const canTakeWildCard = space.stack !== 'standard'
 
               return (

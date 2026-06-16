@@ -42,6 +42,8 @@ describe('room manager', () => {
 
     expect(hostView.game?.players[0].hand).toHaveLength(8)
     expect(hostView.game?.players[1].hand).toEqual([])
+    expect(hostView.game?.stacks.standard).toEqual([])
+    expect(hostView.stackCounts.standard).toBeGreaterThan(0)
     expect(guestView.game?.players[0].hand).toEqual([])
     expect(guestView.game?.players[1].hand).toHaveLength(8)
   })

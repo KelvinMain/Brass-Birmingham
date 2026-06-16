@@ -96,12 +96,19 @@ function filterGameForPlayer(game: GameState | null, playerId: string): GameStat
 }
 
 function createRoomView(room: Room, playerId: string): RoomView {
+  const stackCounts = {
+    standard: room.game?.stacks.standard.length ?? 0,
+    wildLocation: room.game?.stacks.wildLocation.length ?? 0,
+    wildIndustry: room.game?.stacks.wildIndustry.length ?? 0,
+  }
+
   return {
     roomCode: room.code,
     status: room.status,
     playerCount: room.playerCount,
     players: room.players,
     game: filterGameForPlayer(room.game, playerId),
+    stackCounts,
   }
 }
 
