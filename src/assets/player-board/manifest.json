@@ -1,0 +1,2194 @@
+{
+  "baseBoard": {
+    "source": "src/assets/player-board/source-scans/player-board.jpg",
+    "file": "player-board-reference.png"
+  },
+  "industrySheets": [
+    {
+      "player": "orange",
+      "source": "src/assets/player-board/source-scans/orange-yellow-player-industries.jpg",
+      "startIndex": 0,
+      "cellSize": {
+        "width": 238,
+        "height": 238
+      }
+    },
+    {
+      "player": "yellow",
+      "source": "src/assets/player-board/source-scans/orange-yellow-player-industries.jpg",
+      "startIndex": 29,
+      "cellSize": {
+        "width": 238,
+        "height": 238
+      }
+    },
+    {
+      "player": "white",
+      "source": "src/assets/player-board/source-scans/white-purple-player-industries.jpg",
+      "startIndex": 0,
+      "cellSize": {
+        "width": 238,
+        "height": 238
+      }
+    },
+    {
+      "player": "purple",
+      "source": "src/assets/player-board/source-scans/white-purple-player-industries.jpg",
+      "startIndex": 29,
+      "cellSize": {
+        "width": 238,
+        "height": 238
+      }
+    }
+  ],
+  "players": {
+    "orange": [
+      {
+        "id": "cotton-1",
+        "industry": "cotton",
+        "file": "tiles/orange/cotton-1.png",
+        "sheetIndex": 0,
+        "row": 0,
+        "column": 0,
+        "box": [
+          0,
+          0,
+          238,
+          238
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "cotton-2",
+        "industry": "cotton",
+        "file": "tiles/orange/cotton-2.png",
+        "sheetIndex": 1,
+        "row": 0,
+        "column": 1,
+        "box": [
+          238,
+          0,
+          476,
+          238
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "cotton-3",
+        "industry": "cotton",
+        "file": "tiles/orange/cotton-3.png",
+        "sheetIndex": 2,
+        "row": 0,
+        "column": 2,
+        "box": [
+          476,
+          0,
+          714,
+          238
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "cotton-4",
+        "industry": "cotton",
+        "file": "tiles/orange/cotton-4.png",
+        "sheetIndex": 3,
+        "row": 0,
+        "column": 3,
+        "box": [
+          714,
+          0,
+          952,
+          238
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "iron-1",
+        "industry": "iron",
+        "file": "tiles/orange/iron-1.png",
+        "sheetIndex": 4,
+        "row": 0,
+        "column": 4,
+        "box": [
+          952,
+          0,
+          1190,
+          238
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "iron-2",
+        "industry": "iron",
+        "file": "tiles/orange/iron-2.png",
+        "sheetIndex": 5,
+        "row": 0,
+        "column": 5,
+        "box": [
+          1190,
+          0,
+          1428,
+          238
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "iron-3",
+        "industry": "iron",
+        "file": "tiles/orange/iron-3.png",
+        "sheetIndex": 6,
+        "row": 0,
+        "column": 6,
+        "box": [
+          1428,
+          0,
+          1666,
+          238
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "iron-4",
+        "industry": "iron",
+        "file": "tiles/orange/iron-4.png",
+        "sheetIndex": 7,
+        "row": 0,
+        "column": 7,
+        "box": [
+          1666,
+          0,
+          1904,
+          238
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "brewery-1",
+        "industry": "brewery",
+        "file": "tiles/orange/brewery-1.png",
+        "sheetIndex": 8,
+        "row": 0,
+        "column": 8,
+        "box": [
+          1904,
+          0,
+          2142,
+          238
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "brewery-2",
+        "industry": "brewery",
+        "file": "tiles/orange/brewery-2.png",
+        "sheetIndex": 9,
+        "row": 0,
+        "column": 9,
+        "box": [
+          2142,
+          0,
+          2380,
+          238
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "brewery-3",
+        "industry": "brewery",
+        "file": "tiles/orange/brewery-3.png",
+        "sheetIndex": 10,
+        "row": 1,
+        "column": 0,
+        "box": [
+          0,
+          238,
+          238,
+          476
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "brewery-4",
+        "industry": "brewery",
+        "file": "tiles/orange/brewery-4.png",
+        "sheetIndex": 11,
+        "row": 1,
+        "column": 1,
+        "box": [
+          238,
+          238,
+          476,
+          476
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "coal-1",
+        "industry": "coal",
+        "file": "tiles/orange/coal-1.png",
+        "sheetIndex": 12,
+        "row": 1,
+        "column": 2,
+        "box": [
+          476,
+          238,
+          714,
+          476
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "coal-2",
+        "industry": "coal",
+        "file": "tiles/orange/coal-2.png",
+        "sheetIndex": 13,
+        "row": 1,
+        "column": 3,
+        "box": [
+          714,
+          238,
+          952,
+          476
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "coal-3",
+        "industry": "coal",
+        "file": "tiles/orange/coal-3.png",
+        "sheetIndex": 14,
+        "row": 1,
+        "column": 4,
+        "box": [
+          952,
+          238,
+          1190,
+          476
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "coal-4",
+        "industry": "coal",
+        "file": "tiles/orange/coal-4.png",
+        "sheetIndex": 15,
+        "row": 1,
+        "column": 5,
+        "box": [
+          1190,
+          238,
+          1428,
+          476
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "pottery-1",
+        "industry": "pottery",
+        "file": "tiles/orange/pottery-1.png",
+        "sheetIndex": 16,
+        "row": 1,
+        "column": 6,
+        "box": [
+          1428,
+          238,
+          1666,
+          476
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "pottery-2",
+        "industry": "pottery",
+        "file": "tiles/orange/pottery-2.png",
+        "sheetIndex": 17,
+        "row": 1,
+        "column": 7,
+        "box": [
+          1666,
+          238,
+          1904,
+          476
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "pottery-3",
+        "industry": "pottery",
+        "file": "tiles/orange/pottery-3.png",
+        "sheetIndex": 18,
+        "row": 1,
+        "column": 8,
+        "box": [
+          1904,
+          238,
+          2142,
+          476
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "pottery-4",
+        "industry": "pottery",
+        "file": "tiles/orange/pottery-4.png",
+        "sheetIndex": 19,
+        "row": 1,
+        "column": 9,
+        "box": [
+          2142,
+          238,
+          2380,
+          476
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "pottery-5",
+        "industry": "pottery",
+        "file": "tiles/orange/pottery-5.png",
+        "sheetIndex": 20,
+        "row": 2,
+        "column": 0,
+        "box": [
+          0,
+          476,
+          238,
+          714
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-1",
+        "industry": "manufacturer",
+        "file": "tiles/orange/manufacturer-1.png",
+        "sheetIndex": 21,
+        "row": 2,
+        "column": 1,
+        "box": [
+          238,
+          476,
+          476,
+          714
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-2",
+        "industry": "manufacturer",
+        "file": "tiles/orange/manufacturer-2.png",
+        "sheetIndex": 22,
+        "row": 2,
+        "column": 2,
+        "box": [
+          476,
+          476,
+          714,
+          714
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-3",
+        "industry": "manufacturer",
+        "file": "tiles/orange/manufacturer-3.png",
+        "sheetIndex": 23,
+        "row": 2,
+        "column": 3,
+        "box": [
+          714,
+          476,
+          952,
+          714
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-4",
+        "industry": "manufacturer",
+        "file": "tiles/orange/manufacturer-4.png",
+        "sheetIndex": 24,
+        "row": 2,
+        "column": 4,
+        "box": [
+          952,
+          476,
+          1190,
+          714
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-5",
+        "industry": "manufacturer",
+        "file": "tiles/orange/manufacturer-5.png",
+        "sheetIndex": 25,
+        "row": 2,
+        "column": 5,
+        "box": [
+          1190,
+          476,
+          1428,
+          714
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-6",
+        "industry": "manufacturer",
+        "file": "tiles/orange/manufacturer-6.png",
+        "sheetIndex": 26,
+        "row": 2,
+        "column": 6,
+        "box": [
+          1428,
+          476,
+          1666,
+          714
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-7",
+        "industry": "manufacturer",
+        "file": "tiles/orange/manufacturer-7.png",
+        "sheetIndex": 27,
+        "row": 2,
+        "column": 7,
+        "box": [
+          1666,
+          476,
+          1904,
+          714
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-8",
+        "industry": "manufacturer",
+        "file": "tiles/orange/manufacturer-8.png",
+        "sheetIndex": 28,
+        "row": 2,
+        "column": 8,
+        "box": [
+          1904,
+          476,
+          2142,
+          714
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      }
+    ],
+    "yellow": [
+      {
+        "id": "cotton-1",
+        "industry": "cotton",
+        "file": "tiles/yellow/cotton-1.png",
+        "sheetIndex": 29,
+        "row": 2,
+        "column": 9,
+        "box": [
+          2142,
+          476,
+          2380,
+          714
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "cotton-2",
+        "industry": "cotton",
+        "file": "tiles/yellow/cotton-2.png",
+        "sheetIndex": 30,
+        "row": 3,
+        "column": 0,
+        "box": [
+          0,
+          714,
+          238,
+          952
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "cotton-3",
+        "industry": "cotton",
+        "file": "tiles/yellow/cotton-3.png",
+        "sheetIndex": 31,
+        "row": 3,
+        "column": 1,
+        "box": [
+          238,
+          714,
+          476,
+          952
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "cotton-4",
+        "industry": "cotton",
+        "file": "tiles/yellow/cotton-4.png",
+        "sheetIndex": 32,
+        "row": 3,
+        "column": 2,
+        "box": [
+          476,
+          714,
+          714,
+          952
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "iron-1",
+        "industry": "iron",
+        "file": "tiles/yellow/iron-1.png",
+        "sheetIndex": 33,
+        "row": 3,
+        "column": 3,
+        "box": [
+          714,
+          714,
+          952,
+          952
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "iron-2",
+        "industry": "iron",
+        "file": "tiles/yellow/iron-2.png",
+        "sheetIndex": 34,
+        "row": 3,
+        "column": 4,
+        "box": [
+          952,
+          714,
+          1190,
+          952
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "iron-3",
+        "industry": "iron",
+        "file": "tiles/yellow/iron-3.png",
+        "sheetIndex": 35,
+        "row": 3,
+        "column": 5,
+        "box": [
+          1190,
+          714,
+          1428,
+          952
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "iron-4",
+        "industry": "iron",
+        "file": "tiles/yellow/iron-4.png",
+        "sheetIndex": 36,
+        "row": 3,
+        "column": 6,
+        "box": [
+          1428,
+          714,
+          1666,
+          952
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "brewery-1",
+        "industry": "brewery",
+        "file": "tiles/yellow/brewery-1.png",
+        "sheetIndex": 37,
+        "row": 3,
+        "column": 7,
+        "box": [
+          1666,
+          714,
+          1904,
+          952
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "brewery-2",
+        "industry": "brewery",
+        "file": "tiles/yellow/brewery-2.png",
+        "sheetIndex": 38,
+        "row": 3,
+        "column": 8,
+        "box": [
+          1904,
+          714,
+          2142,
+          952
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "brewery-3",
+        "industry": "brewery",
+        "file": "tiles/yellow/brewery-3.png",
+        "sheetIndex": 39,
+        "row": 3,
+        "column": 9,
+        "box": [
+          2142,
+          714,
+          2380,
+          952
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "brewery-4",
+        "industry": "brewery",
+        "file": "tiles/yellow/brewery-4.png",
+        "sheetIndex": 40,
+        "row": 4,
+        "column": 0,
+        "box": [
+          0,
+          952,
+          238,
+          1190
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "coal-1",
+        "industry": "coal",
+        "file": "tiles/yellow/coal-1.png",
+        "sheetIndex": 41,
+        "row": 4,
+        "column": 1,
+        "box": [
+          238,
+          952,
+          476,
+          1190
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "coal-2",
+        "industry": "coal",
+        "file": "tiles/yellow/coal-2.png",
+        "sheetIndex": 42,
+        "row": 4,
+        "column": 2,
+        "box": [
+          476,
+          952,
+          714,
+          1190
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "coal-3",
+        "industry": "coal",
+        "file": "tiles/yellow/coal-3.png",
+        "sheetIndex": 43,
+        "row": 4,
+        "column": 3,
+        "box": [
+          714,
+          952,
+          952,
+          1190
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "coal-4",
+        "industry": "coal",
+        "file": "tiles/yellow/coal-4.png",
+        "sheetIndex": 44,
+        "row": 4,
+        "column": 4,
+        "box": [
+          952,
+          952,
+          1190,
+          1190
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "pottery-1",
+        "industry": "pottery",
+        "file": "tiles/yellow/pottery-1.png",
+        "sheetIndex": 45,
+        "row": 4,
+        "column": 5,
+        "box": [
+          1190,
+          952,
+          1428,
+          1190
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "pottery-2",
+        "industry": "pottery",
+        "file": "tiles/yellow/pottery-2.png",
+        "sheetIndex": 46,
+        "row": 4,
+        "column": 6,
+        "box": [
+          1428,
+          952,
+          1666,
+          1190
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "pottery-3",
+        "industry": "pottery",
+        "file": "tiles/yellow/pottery-3.png",
+        "sheetIndex": 47,
+        "row": 4,
+        "column": 7,
+        "box": [
+          1666,
+          952,
+          1904,
+          1190
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "pottery-4",
+        "industry": "pottery",
+        "file": "tiles/yellow/pottery-4.png",
+        "sheetIndex": 48,
+        "row": 4,
+        "column": 8,
+        "box": [
+          1904,
+          952,
+          2142,
+          1190
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "pottery-5",
+        "industry": "pottery",
+        "file": "tiles/yellow/pottery-5.png",
+        "sheetIndex": 49,
+        "row": 4,
+        "column": 9,
+        "box": [
+          2142,
+          952,
+          2380,
+          1190
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-1",
+        "industry": "manufacturer",
+        "file": "tiles/yellow/manufacturer-1.png",
+        "sheetIndex": 50,
+        "row": 5,
+        "column": 0,
+        "box": [
+          0,
+          1190,
+          238,
+          1428
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-2",
+        "industry": "manufacturer",
+        "file": "tiles/yellow/manufacturer-2.png",
+        "sheetIndex": 51,
+        "row": 5,
+        "column": 1,
+        "box": [
+          238,
+          1190,
+          476,
+          1428
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-3",
+        "industry": "manufacturer",
+        "file": "tiles/yellow/manufacturer-3.png",
+        "sheetIndex": 52,
+        "row": 5,
+        "column": 2,
+        "box": [
+          476,
+          1190,
+          714,
+          1428
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-4",
+        "industry": "manufacturer",
+        "file": "tiles/yellow/manufacturer-4.png",
+        "sheetIndex": 53,
+        "row": 5,
+        "column": 3,
+        "box": [
+          714,
+          1190,
+          952,
+          1428
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-5",
+        "industry": "manufacturer",
+        "file": "tiles/yellow/manufacturer-5.png",
+        "sheetIndex": 54,
+        "row": 5,
+        "column": 4,
+        "box": [
+          952,
+          1190,
+          1190,
+          1428
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-6",
+        "industry": "manufacturer",
+        "file": "tiles/yellow/manufacturer-6.png",
+        "sheetIndex": 55,
+        "row": 5,
+        "column": 5,
+        "box": [
+          1190,
+          1190,
+          1428,
+          1428
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-7",
+        "industry": "manufacturer",
+        "file": "tiles/yellow/manufacturer-7.png",
+        "sheetIndex": 56,
+        "row": 5,
+        "column": 6,
+        "box": [
+          1428,
+          1190,
+          1666,
+          1428
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-8",
+        "industry": "manufacturer",
+        "file": "tiles/yellow/manufacturer-8.png",
+        "sheetIndex": 57,
+        "row": 5,
+        "column": 7,
+        "box": [
+          1666,
+          1190,
+          1904,
+          1428
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      }
+    ],
+    "white": [
+      {
+        "id": "cotton-1",
+        "industry": "cotton",
+        "file": "tiles/white/cotton-1.png",
+        "sheetIndex": 0,
+        "row": 0,
+        "column": 0,
+        "box": [
+          0,
+          0,
+          238,
+          238
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "cotton-2",
+        "industry": "cotton",
+        "file": "tiles/white/cotton-2.png",
+        "sheetIndex": 1,
+        "row": 0,
+        "column": 1,
+        "box": [
+          238,
+          0,
+          476,
+          238
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "cotton-3",
+        "industry": "cotton",
+        "file": "tiles/white/cotton-3.png",
+        "sheetIndex": 2,
+        "row": 0,
+        "column": 2,
+        "box": [
+          476,
+          0,
+          714,
+          238
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "cotton-4",
+        "industry": "cotton",
+        "file": "tiles/white/cotton-4.png",
+        "sheetIndex": 3,
+        "row": 0,
+        "column": 3,
+        "box": [
+          714,
+          0,
+          952,
+          238
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "iron-1",
+        "industry": "iron",
+        "file": "tiles/white/iron-1.png",
+        "sheetIndex": 4,
+        "row": 0,
+        "column": 4,
+        "box": [
+          952,
+          0,
+          1190,
+          238
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "iron-2",
+        "industry": "iron",
+        "file": "tiles/white/iron-2.png",
+        "sheetIndex": 5,
+        "row": 0,
+        "column": 5,
+        "box": [
+          1190,
+          0,
+          1428,
+          238
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "iron-3",
+        "industry": "iron",
+        "file": "tiles/white/iron-3.png",
+        "sheetIndex": 6,
+        "row": 0,
+        "column": 6,
+        "box": [
+          1428,
+          0,
+          1666,
+          238
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "iron-4",
+        "industry": "iron",
+        "file": "tiles/white/iron-4.png",
+        "sheetIndex": 7,
+        "row": 0,
+        "column": 7,
+        "box": [
+          1666,
+          0,
+          1904,
+          238
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "brewery-1",
+        "industry": "brewery",
+        "file": "tiles/white/brewery-1.png",
+        "sheetIndex": 8,
+        "row": 0,
+        "column": 8,
+        "box": [
+          1904,
+          0,
+          2142,
+          238
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "brewery-2",
+        "industry": "brewery",
+        "file": "tiles/white/brewery-2.png",
+        "sheetIndex": 9,
+        "row": 0,
+        "column": 9,
+        "box": [
+          2142,
+          0,
+          2380,
+          238
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "brewery-3",
+        "industry": "brewery",
+        "file": "tiles/white/brewery-3.png",
+        "sheetIndex": 10,
+        "row": 1,
+        "column": 0,
+        "box": [
+          0,
+          238,
+          238,
+          476
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "brewery-4",
+        "industry": "brewery",
+        "file": "tiles/white/brewery-4.png",
+        "sheetIndex": 11,
+        "row": 1,
+        "column": 1,
+        "box": [
+          238,
+          238,
+          476,
+          476
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "coal-1",
+        "industry": "coal",
+        "file": "tiles/white/coal-1.png",
+        "sheetIndex": 12,
+        "row": 1,
+        "column": 2,
+        "box": [
+          476,
+          238,
+          714,
+          476
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "coal-2",
+        "industry": "coal",
+        "file": "tiles/white/coal-2.png",
+        "sheetIndex": 13,
+        "row": 1,
+        "column": 3,
+        "box": [
+          714,
+          238,
+          952,
+          476
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "coal-3",
+        "industry": "coal",
+        "file": "tiles/white/coal-3.png",
+        "sheetIndex": 14,
+        "row": 1,
+        "column": 4,
+        "box": [
+          952,
+          238,
+          1190,
+          476
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "coal-4",
+        "industry": "coal",
+        "file": "tiles/white/coal-4.png",
+        "sheetIndex": 15,
+        "row": 1,
+        "column": 5,
+        "box": [
+          1190,
+          238,
+          1428,
+          476
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "pottery-1",
+        "industry": "pottery",
+        "file": "tiles/white/pottery-1.png",
+        "sheetIndex": 16,
+        "row": 1,
+        "column": 6,
+        "box": [
+          1428,
+          238,
+          1666,
+          476
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "pottery-2",
+        "industry": "pottery",
+        "file": "tiles/white/pottery-2.png",
+        "sheetIndex": 17,
+        "row": 1,
+        "column": 7,
+        "box": [
+          1666,
+          238,
+          1904,
+          476
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "pottery-3",
+        "industry": "pottery",
+        "file": "tiles/white/pottery-3.png",
+        "sheetIndex": 18,
+        "row": 1,
+        "column": 8,
+        "box": [
+          1904,
+          238,
+          2142,
+          476
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "pottery-4",
+        "industry": "pottery",
+        "file": "tiles/white/pottery-4.png",
+        "sheetIndex": 19,
+        "row": 1,
+        "column": 9,
+        "box": [
+          2142,
+          238,
+          2380,
+          476
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "pottery-5",
+        "industry": "pottery",
+        "file": "tiles/white/pottery-5.png",
+        "sheetIndex": 20,
+        "row": 2,
+        "column": 0,
+        "box": [
+          0,
+          476,
+          238,
+          714
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-1",
+        "industry": "manufacturer",
+        "file": "tiles/white/manufacturer-1.png",
+        "sheetIndex": 21,
+        "row": 2,
+        "column": 1,
+        "box": [
+          238,
+          476,
+          476,
+          714
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-2",
+        "industry": "manufacturer",
+        "file": "tiles/white/manufacturer-2.png",
+        "sheetIndex": 22,
+        "row": 2,
+        "column": 2,
+        "box": [
+          476,
+          476,
+          714,
+          714
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-3",
+        "industry": "manufacturer",
+        "file": "tiles/white/manufacturer-3.png",
+        "sheetIndex": 23,
+        "row": 2,
+        "column": 3,
+        "box": [
+          714,
+          476,
+          952,
+          714
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-4",
+        "industry": "manufacturer",
+        "file": "tiles/white/manufacturer-4.png",
+        "sheetIndex": 24,
+        "row": 2,
+        "column": 4,
+        "box": [
+          952,
+          476,
+          1190,
+          714
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-5",
+        "industry": "manufacturer",
+        "file": "tiles/white/manufacturer-5.png",
+        "sheetIndex": 25,
+        "row": 2,
+        "column": 5,
+        "box": [
+          1190,
+          476,
+          1428,
+          714
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-6",
+        "industry": "manufacturer",
+        "file": "tiles/white/manufacturer-6.png",
+        "sheetIndex": 26,
+        "row": 2,
+        "column": 6,
+        "box": [
+          1428,
+          476,
+          1666,
+          714
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-7",
+        "industry": "manufacturer",
+        "file": "tiles/white/manufacturer-7.png",
+        "sheetIndex": 27,
+        "row": 2,
+        "column": 7,
+        "box": [
+          1666,
+          476,
+          1904,
+          714
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-8",
+        "industry": "manufacturer",
+        "file": "tiles/white/manufacturer-8.png",
+        "sheetIndex": 28,
+        "row": 2,
+        "column": 8,
+        "box": [
+          1904,
+          476,
+          2142,
+          714
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      }
+    ],
+    "purple": [
+      {
+        "id": "cotton-1",
+        "industry": "cotton",
+        "file": "tiles/purple/cotton-1.png",
+        "sheetIndex": 29,
+        "row": 2,
+        "column": 9,
+        "box": [
+          2142,
+          476,
+          2380,
+          714
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "cotton-2",
+        "industry": "cotton",
+        "file": "tiles/purple/cotton-2.png",
+        "sheetIndex": 30,
+        "row": 3,
+        "column": 0,
+        "box": [
+          0,
+          714,
+          238,
+          952
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "cotton-3",
+        "industry": "cotton",
+        "file": "tiles/purple/cotton-3.png",
+        "sheetIndex": 31,
+        "row": 3,
+        "column": 1,
+        "box": [
+          238,
+          714,
+          476,
+          952
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "cotton-4",
+        "industry": "cotton",
+        "file": "tiles/purple/cotton-4.png",
+        "sheetIndex": 32,
+        "row": 3,
+        "column": 2,
+        "box": [
+          476,
+          714,
+          714,
+          952
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "iron-1",
+        "industry": "iron",
+        "file": "tiles/purple/iron-1.png",
+        "sheetIndex": 33,
+        "row": 3,
+        "column": 3,
+        "box": [
+          714,
+          714,
+          952,
+          952
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "iron-2",
+        "industry": "iron",
+        "file": "tiles/purple/iron-2.png",
+        "sheetIndex": 34,
+        "row": 3,
+        "column": 4,
+        "box": [
+          952,
+          714,
+          1190,
+          952
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "iron-3",
+        "industry": "iron",
+        "file": "tiles/purple/iron-3.png",
+        "sheetIndex": 35,
+        "row": 3,
+        "column": 5,
+        "box": [
+          1190,
+          714,
+          1428,
+          952
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "iron-4",
+        "industry": "iron",
+        "file": "tiles/purple/iron-4.png",
+        "sheetIndex": 36,
+        "row": 3,
+        "column": 6,
+        "box": [
+          1428,
+          714,
+          1666,
+          952
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "brewery-1",
+        "industry": "brewery",
+        "file": "tiles/purple/brewery-1.png",
+        "sheetIndex": 37,
+        "row": 3,
+        "column": 7,
+        "box": [
+          1666,
+          714,
+          1904,
+          952
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "brewery-2",
+        "industry": "brewery",
+        "file": "tiles/purple/brewery-2.png",
+        "sheetIndex": 38,
+        "row": 3,
+        "column": 8,
+        "box": [
+          1904,
+          714,
+          2142,
+          952
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "brewery-3",
+        "industry": "brewery",
+        "file": "tiles/purple/brewery-3.png",
+        "sheetIndex": 39,
+        "row": 3,
+        "column": 9,
+        "box": [
+          2142,
+          714,
+          2380,
+          952
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "brewery-4",
+        "industry": "brewery",
+        "file": "tiles/purple/brewery-4.png",
+        "sheetIndex": 40,
+        "row": 4,
+        "column": 0,
+        "box": [
+          0,
+          952,
+          238,
+          1190
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "coal-1",
+        "industry": "coal",
+        "file": "tiles/purple/coal-1.png",
+        "sheetIndex": 41,
+        "row": 4,
+        "column": 1,
+        "box": [
+          238,
+          952,
+          476,
+          1190
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "coal-2",
+        "industry": "coal",
+        "file": "tiles/purple/coal-2.png",
+        "sheetIndex": 42,
+        "row": 4,
+        "column": 2,
+        "box": [
+          476,
+          952,
+          714,
+          1190
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "coal-3",
+        "industry": "coal",
+        "file": "tiles/purple/coal-3.png",
+        "sheetIndex": 43,
+        "row": 4,
+        "column": 3,
+        "box": [
+          714,
+          952,
+          952,
+          1190
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "coal-4",
+        "industry": "coal",
+        "file": "tiles/purple/coal-4.png",
+        "sheetIndex": 44,
+        "row": 4,
+        "column": 4,
+        "box": [
+          952,
+          952,
+          1190,
+          1190
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "pottery-1",
+        "industry": "pottery",
+        "file": "tiles/purple/pottery-1.png",
+        "sheetIndex": 45,
+        "row": 4,
+        "column": 5,
+        "box": [
+          1190,
+          952,
+          1428,
+          1190
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "pottery-2",
+        "industry": "pottery",
+        "file": "tiles/purple/pottery-2.png",
+        "sheetIndex": 46,
+        "row": 4,
+        "column": 6,
+        "box": [
+          1428,
+          952,
+          1666,
+          1190
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "pottery-3",
+        "industry": "pottery",
+        "file": "tiles/purple/pottery-3.png",
+        "sheetIndex": 47,
+        "row": 4,
+        "column": 7,
+        "box": [
+          1666,
+          952,
+          1904,
+          1190
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "pottery-4",
+        "industry": "pottery",
+        "file": "tiles/purple/pottery-4.png",
+        "sheetIndex": 48,
+        "row": 4,
+        "column": 8,
+        "box": [
+          1904,
+          952,
+          2142,
+          1190
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "pottery-5",
+        "industry": "pottery",
+        "file": "tiles/purple/pottery-5.png",
+        "sheetIndex": 49,
+        "row": 4,
+        "column": 9,
+        "box": [
+          2142,
+          952,
+          2380,
+          1190
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-1",
+        "industry": "manufacturer",
+        "file": "tiles/purple/manufacturer-1.png",
+        "sheetIndex": 50,
+        "row": 5,
+        "column": 0,
+        "box": [
+          0,
+          1190,
+          238,
+          1428
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-2",
+        "industry": "manufacturer",
+        "file": "tiles/purple/manufacturer-2.png",
+        "sheetIndex": 51,
+        "row": 5,
+        "column": 1,
+        "box": [
+          238,
+          1190,
+          476,
+          1428
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-3",
+        "industry": "manufacturer",
+        "file": "tiles/purple/manufacturer-3.png",
+        "sheetIndex": 52,
+        "row": 5,
+        "column": 2,
+        "box": [
+          476,
+          1190,
+          714,
+          1428
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-4",
+        "industry": "manufacturer",
+        "file": "tiles/purple/manufacturer-4.png",
+        "sheetIndex": 53,
+        "row": 5,
+        "column": 3,
+        "box": [
+          714,
+          1190,
+          952,
+          1428
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-5",
+        "industry": "manufacturer",
+        "file": "tiles/purple/manufacturer-5.png",
+        "sheetIndex": 54,
+        "row": 5,
+        "column": 4,
+        "box": [
+          952,
+          1190,
+          1190,
+          1428
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-6",
+        "industry": "manufacturer",
+        "file": "tiles/purple/manufacturer-6.png",
+        "sheetIndex": 55,
+        "row": 5,
+        "column": 5,
+        "box": [
+          1190,
+          1190,
+          1428,
+          1428
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-7",
+        "industry": "manufacturer",
+        "file": "tiles/purple/manufacturer-7.png",
+        "sheetIndex": 56,
+        "row": 5,
+        "column": 6,
+        "box": [
+          1428,
+          1190,
+          1666,
+          1428
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      },
+      {
+        "id": "manufacturer-8",
+        "industry": "manufacturer",
+        "file": "tiles/purple/manufacturer-8.png",
+        "sheetIndex": 57,
+        "row": 5,
+        "column": 7,
+        "box": [
+          1666,
+          1190,
+          1904,
+          1428
+        ],
+        "size": {
+          "width": 238,
+          "height": 238
+        }
+      }
+    ]
+  },
+  "merchantTiles": {
+    "pottery": {
+      "file": "merchant-tiles/pottery.png",
+      "box": [
+        0,
+        0,
+        459,
+        458
+      ],
+      "source": "src/assets/player-board/source-scans/merchant-tiles.jpg"
+    },
+    "manufacturer": {
+      "file": "merchant-tiles/manufacturer.png",
+      "box": [
+        459,
+        0,
+        919,
+        458
+      ],
+      "source": "src/assets/player-board/source-scans/merchant-tiles.jpg"
+    },
+    "cotton": {
+      "file": "merchant-tiles/cotton.png",
+      "box": [
+        919,
+        0,
+        1378,
+        458
+      ],
+      "source": "src/assets/player-board/source-scans/merchant-tiles.jpg"
+    },
+    "all": {
+      "file": "merchant-tiles/all.png",
+      "box": [
+        0,
+        458,
+        459,
+        916
+      ],
+      "source": "src/assets/player-board/source-scans/merchant-tiles.jpg"
+    },
+    "none": {
+      "file": "merchant-tiles/none.png",
+      "box": [
+        459,
+        458,
+        919,
+        916
+      ],
+      "source": "src/assets/player-board/source-scans/merchant-tiles.jpg"
+    }
+  }
+}

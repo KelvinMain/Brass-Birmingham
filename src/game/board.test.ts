@@ -5,20 +5,28 @@ import {
   boardControlSpaces,
   createBoardState,
   getBoardPointFromClientPosition,
+  getVisibleMerchantTilePlacements,
   type IndustrySpace,
   type LinkKind,
   type LinkSpace,
   industrySpaces,
   linkSpaces,
   marketResourceSpaces,
+  merchantTiles,
+  merchantTileSpaces,
+  flipIndustryTile,
+  moveIndustryTile,
   moveResourceCubeToBeer,
   moveResourceCubeToMarket,
+  moveLinkTile,
   placeBeerResourceCube,
   placeIndustryResourceCube,
   placeMarketResourceCube,
   placeIndustryTile,
   placeLinkTile,
+  removeIndustryTile,
   removeIndustryResourceCube,
+  removeLinkTile,
   removeMarketResourceCube,
   removeBeerResourceCube,
   resourceCubeKinds,
@@ -27,6 +35,7 @@ import {
   updateIndustrySpaceCalibration,
   updateLinkSpaceCalibration,
   updateMarketResourceSpaceCalibration,
+  updateMerchantTileSpaceCalibration,
 } from './board'
 
 const getSpaces = (spaceIds: string[]) =>
@@ -74,12 +83,86 @@ describe('Brass: Birmingham board placement', () => {
     })
   })
 
+  it('moves a placed industry tile to another valid empty space', () => {
+    const state = placeIndustryTile(createBoardState(), 'birmingham-1', {
+      id: 'tile-manufacturer-1',
+      industry: 'manufacturer',
+      ownerId: 'player-1',
+      tileId: 'manufacturer-1',
+    })
+
+    const result = moveIndustryTile(
+      state,
+      'birmingham-1',
+      'birmingham-2',
+      state.industryPlacements['birmingham-1'],
+    )
+
+    expect(result.industryPlacements['birmingham-1']).toBeUndefined()
+    expect(result.industryPlacements['birmingham-2']).toEqual({
+      id: 'tile-manufacturer-1',
+      industry: 'manufacturer',
+      ownerId: 'player-1',
+      tileId: 'manufacturer-1',
+    })
+  })
+
+  it('removes a placed industry tile and its resource cubes', () => {
+    const placed = placeIndustryTile(createBoardState(), 'cannock-2', {
+      id: 'tile-coal-1',
+      industry: 'coal',
+      ownerId: 'player-1',
+      tileId: 'coal-1',
+    })
+    const withResource = placeIndustryResourceCube(placed, 'cannock-2', {
+      id: 'coal-cube-1',
+      kind: 'coal',
+      spaceId: 'cannock-2',
+    })
+
+    const result = removeIndustryTile(withResource, 'cannock-2')
+
+    expect(result.industryPlacements['cannock-2']).toBeUndefined()
+    expect(result.industryResourcePlacements['cannock-2']).toBeUndefined()
+  })
+
+  it('flips an industry tile only when it has no resources on it', () => {
+    const placed = placeIndustryTile(createBoardState(), 'cannock-2', {
+      id: 'tile-coal-1',
+      industry: 'coal',
+      ownerId: 'player-1',
+      tileId: 'coal-1',
+    })
+    const flipped = flipIndustryTile(placed, 'cannock-2')
+    const withResource = placeIndustryResourceCube(placed, 'cannock-2', {
+      id: 'coal-cube-1',
+      kind: 'coal',
+      spaceId: 'cannock-2',
+    })
+
+    expect(flipped.industryPlacements['cannock-2']).toMatchObject({
+      flipped: true,
+    })
+    expect(flipIndustryTile(flipped, 'cannock-2').industryPlacements['cannock-2']).toMatchObject({
+      flipped: false,
+    })
+    expect(flipIndustryTile(withResource, 'cannock-2')).toEqual(withResource)
+    expect(
+      placeIndustryResourceCube(flipped, 'cannock-2', {
+        id: 'coal-cube-2',
+        kind: 'coal',
+        spaceId: 'cannock-2',
+      }),
+    ).toEqual(flipped)
+  })
+
   it('contains the supplied build spaces and market endpoints', () => {
     expect(industrySpaces).toHaveLength(49)
     expect(linkSpaces).toHaveLength(39)
     expect(boardControlSpaces).toHaveLength(3)
     expect(marketResourceSpaces).toHaveLength(24)
     expect(beerResourceSpaces).toHaveLength(9)
+    expect(merchantTileSpaces).toHaveLength(9)
     expect(industrySpaces.find((space) => space.id === 'belper-1')).toMatchObject({
       city: 'Belper',
       allowedIndustries: ['cotton', 'manufacturer'],
@@ -151,6 +234,144 @@ describe('Brass: Birmingham board placement', () => {
       { id: 'board-beer-7', x: 85.29, y: 82.29 },
       { id: 'board-beer-8', x: 57.08, y: 89.43 },
       { id: 'board-beer-9', x: 63.5, y: 89.31 },
+    ])
+  })
+
+  it('defines nine calibratable merchant tile spots', () => {
+    expect(merchantTileSpaces.map((space) => space.id)).toEqual([
+      'merchant-tile-1',
+      'merchant-tile-2',
+      'merchant-tile-3',
+      'merchant-tile-4',
+      'merchant-tile-5',
+      'merchant-tile-6',
+      'merchant-tile-7',
+      'merchant-tile-8',
+      'merchant-tile-9',
+    ])
+    expect(merchantTileSpaces.map((space) => space.merchantIndex)).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 8, 9,
+    ])
+    expect(
+      merchantTileSpaces.map((space) => ({
+        id: space.id,
+        x: space.x,
+        y: space.y,
+      })),
+    ).toEqual([
+      { id: 'merchant-tile-1', x: 25.44, y: 13.43 },
+      { id: 'merchant-tile-2', x: 29.91, y: 13.43 },
+      { id: 'merchant-tile-3', x: 88, y: 18.99 },
+      { id: 'merchant-tile-4', x: 92.84, y: 18.99 },
+      { id: 'merchant-tile-5', x: 8.86, y: 60.26 },
+      { id: 'merchant-tile-6', x: 79.65, y: 85.91 },
+      { id: 'merchant-tile-7', x: 84.12, y: 85.91 },
+      { id: 'merchant-tile-8', x: 57.99, y: 93.05 },
+      { id: 'merchant-tile-9', x: 62.46, y: 93.05 },
+    ])
+  })
+
+  it('defines merchant tiles in player-count order', () => {
+    expect(merchantTiles.map((tile) => tile.kind)).toEqual([
+      'manufacturer',
+      'cotton',
+      'all',
+      'none',
+      'none',
+      'pottery',
+      'none',
+      'manufacturer',
+      'cotton',
+    ])
+  })
+
+  it('initializes two-player merchant tiles on the five always-used merchant spots', () => {
+    const state = createBoardState(2, () => 0.99)
+
+    expect(Object.keys(state.merchantTilePlacements)).toEqual([
+      'merchant-tile-5',
+      'merchant-tile-6',
+      'merchant-tile-7',
+      'merchant-tile-8',
+      'merchant-tile-9',
+    ])
+    expect(Object.values(state.merchantTilePlacements).map((tile) => tile.kind)).toEqual([
+      'manufacturer',
+      'cotton',
+      'all',
+      'none',
+      'none',
+    ])
+    expect(Object.keys(state.beerResourcePlacements)).toEqual([
+      'board-beer-5',
+      'board-beer-6',
+      'board-beer-7',
+    ])
+  })
+
+  it('adds the 3-4 player merchant spots for three-player games', () => {
+    const state = createBoardState(3, () => 0.99)
+
+    expect(Object.keys(state.merchantTilePlacements)).toEqual([
+      'merchant-tile-1',
+      'merchant-tile-2',
+      'merchant-tile-5',
+      'merchant-tile-6',
+      'merchant-tile-7',
+      'merchant-tile-8',
+      'merchant-tile-9',
+    ])
+    expect(Object.values(state.merchantTilePlacements).map((tile) => tile.kind)).toEqual([
+      'manufacturer',
+      'cotton',
+      'all',
+      'none',
+      'none',
+      'pottery',
+      'none',
+    ])
+    expect(Object.keys(state.beerResourcePlacements)).toEqual([
+      'board-beer-1',
+      'board-beer-2',
+      'board-beer-5',
+      'board-beer-8',
+    ])
+  })
+
+  it('uses every merchant spot for four-player games and randomizes tile order', () => {
+    const state = createBoardState(4, () => 0)
+
+    expect(Object.keys(state.merchantTilePlacements)).toEqual([
+      'merchant-tile-1',
+      'merchant-tile-2',
+      'merchant-tile-3',
+      'merchant-tile-4',
+      'merchant-tile-5',
+      'merchant-tile-6',
+      'merchant-tile-7',
+      'merchant-tile-8',
+      'merchant-tile-9',
+    ])
+    expect(Object.values(state.merchantTilePlacements).map((tile) => tile.tileIndex)).toEqual([
+      2, 3, 4, 5, 6, 7, 8, 9, 1,
+    ])
+    expect(Object.keys(state.beerResourcePlacements)).toEqual([
+      'board-beer-1',
+      'board-beer-2',
+      'board-beer-5',
+      'board-beer-7',
+      'board-beer-8',
+      'board-beer-9',
+    ])
+  })
+
+  it('excludes None merchant tiles from visible merchant placements', () => {
+    const state = createBoardState(2, () => 0.99)
+
+    expect(Object.keys(getVisibleMerchantTilePlacements(state))).toEqual([
+      'merchant-tile-5',
+      'merchant-tile-6',
+      'merchant-tile-7',
     ])
   })
 
@@ -311,6 +532,37 @@ describe('Brass: Birmingham board placement', () => {
     })
 
     expect(result.linkPlacements['birmingham-coventry']).toEqual({
+      id: 'link-canal-1',
+      kind: 'canal',
+      ownerId: 'player-1',
+    })
+  })
+
+  it('removes link tiles from occupied connection spaces', () => {
+    const state = placeLinkTile(createBoardState(), 'birmingham-coventry', {
+      id: 'link-canal-1',
+      kind: 'canal',
+      ownerId: 'player-1',
+    })
+
+    expect(removeLinkTile(state, 'birmingham-coventry').linkPlacements).toEqual({})
+    expect(removeLinkTile(state, 'missing-link')).toEqual(state)
+  })
+
+  it('moves a link tile to another valid empty connection space', () => {
+    const state = placeLinkTile(createBoardState(), 'birmingham-coventry', {
+      id: 'link-canal-1',
+      kind: 'canal',
+      ownerId: 'player-1',
+    })
+    const result = moveLinkTile(state, 'birmingham-coventry', 'birmingham-oxford', {
+      id: 'link-canal-1',
+      kind: 'canal',
+      ownerId: 'player-1',
+    })
+
+    expect(result.linkPlacements['birmingham-coventry']).toBeUndefined()
+    expect(result.linkPlacements['birmingham-oxford']).toEqual({
       id: 'link-canal-1',
       kind: 'canal',
       ownerId: 'player-1',
@@ -676,6 +928,15 @@ describe('Brass: Birmingham board placement', () => {
     ).toMatchObject({
       x: 31.25,
       y: 45.75,
+    })
+    expect(
+      updateMerchantTileSpaceCalibration(merchantTileSpaces, 'merchant-tile-4', {
+        x: 42.5,
+        y: 61.25,
+      }).find((space) => space.id === 'merchant-tile-4'),
+    ).toMatchObject({
+      x: 42.5,
+      y: 61.25,
     })
   })
 

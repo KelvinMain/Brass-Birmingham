@@ -1,27 +1,33 @@
-import { useMemo, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 
 import './App.css'
 
-import { standardCards } from './game/cards'
 import type { Industry, PlayerCount } from './game/cards'
 import {
   beerResourceSpaces,
   boardControlSpaces,
+  flipIndustryTile,
   getBoardPointFromClientPosition,
+  getVisibleMerchantTilePlacements,
   industrySpaces,
   linkSpaces,
   marketResourceSpaces,
+  merchantTileSpaces,
+  moveIndustryTile,
+  moveLinkTile,
   moveResourceCubeToBeer,
   moveResourceCubeToMarket,
   placeIndustryResourceCube,
   placeIndustryTile,
   placeLinkTile,
   removeBeerResourceCube,
+  removeIndustryTile,
   removeIndustryResourceCube,
+  removeLinkTile,
   removeMarketResourceCube,
   resourceCubeKinds,
-  updateBeerResourceSpaceCalibration,
+  updateMerchantTileSpaceCalibration,
 } from './game/board'
 import type {
   BeerResourceSpace,
@@ -29,6 +35,7 @@ import type {
   LinkTilePlacement,
   MarketResourcePlacement,
   MarketResourceSpace,
+  MerchantTileSpace,
 } from './game/board'
 import {
   addCardToHand,
@@ -38,26 +45,65 @@ import {
   shuffleDeck,
 } from './game/deck'
 import type { DrawableStacks, GameCard } from './game/deck'
-import { createGameState, discardCardFromPlayerHand, updatePlayerScore } from './game/game'
-import type { GameState } from './game/game'
-
-const industryCards = standardCards.filter((card) => card.kind === 'industry')
-
-const industryCounts = industryCards.reduce<Record<string, number>>((counts, card) => {
-  const label = card.industries.join(' / ')
-  counts[label] = (counts[label] ?? 0) + 1
-  return counts
-}, {})
+import {
+  createGameState,
+  consumeFlippedPlayerBoardIndustryTile,
+  developIndustryTile,
+  discardCardFromPlayerHand,
+  flipDevelopedIndustryTile,
+  flipPlayerBoardIndustryTile,
+  getRequiredEndTurnHandSize,
+  passTurn,
+  removeDevelopedIndustryTile,
+  restoreFlippedPlayerBoardIndustryTile,
+  updatePlayerMoney,
+  updatePlayerScore,
+} from './game/game'
+import type { GameState, PlayerColor } from './game/game'
+import {
+  getPlayerBoardTileCount,
+  getPlayerBoardAssetColor,
+  isPlayerBoardIndustryTileUsable,
+  isPlayerBoardTileDevelopable,
+  playerBoardIndustryTiles,
+  updatePlayerBoardTileCalibration,
+} from './game/playerBoard'
+import type { PlayerBoardIndustryTile, PlayerBoardTileAssetColor } from './game/playerBoard'
 
 type StackKey = keyof DrawableStacks
 
 type CardStyle = CSSProperties & {
+  '--card-face-image'?: string
   '--card-tint'?: string
 }
 
+type BoardPieceStyle = CSSProperties & {
+  '--industry-tile-image'?: string
+  '--link-tile-image'?: string
+  '--owner-color'?: string
+  '--owner-text-color'?: string
+}
+
 const playerCounts: PlayerCount[] = [2, 3, 4]
-const industries: Industry[] = ['coal', 'iron', 'brewery', 'cotton', 'manufacturer', 'pottery']
-const linkKinds: LinkTilePlacement['kind'][] = ['canal', 'rail']
+
+const playerColorStyles = {
+  white: {
+    color: '#f6f1e7',
+    text: '#17120d',
+  },
+  red: {
+    color: '#b9413d',
+    text: '#fff7ec',
+  },
+  blue: {
+    color: '#2f68b8',
+    text: '#fff7ec',
+  },
+  green: {
+    color: '#3f8b4b',
+    text: '#fff7ec',
+  },
+} satisfies Record<PlayerColor, { color: string; text: string }>
 
 const resourceCubeColors = {
   coal: '#050505',
@@ -65,14 +111,149 @@ const resourceCubeColors = {
   beer: '#d7b15c',
 } satisfies Record<(typeof resourceCubeKinds)[number], string>
 
+const scannedCardFaceUrls = {
+  'card-face-01': new URL('./assets/cards/scanned/faces/card-face-01.jpg', import.meta.url).href,
+  'card-face-02': new URL('./assets/cards/scanned/faces/card-face-02.jpg', import.meta.url).href,
+  'card-face-03': new URL('./assets/cards/scanned/faces/card-face-03.jpg', import.meta.url).href,
+  'card-face-04': new URL('./assets/cards/scanned/faces/card-face-04.jpg', import.meta.url).href,
+  'card-face-05': new URL('./assets/cards/scanned/faces/card-face-05.jpg', import.meta.url).href,
+  'card-face-07': new URL('./assets/cards/scanned/faces/card-face-07.jpg', import.meta.url).href,
+  'card-face-08': new URL('./assets/cards/scanned/faces/card-face-08.jpg', import.meta.url).href,
+  'card-face-09': new URL('./assets/cards/scanned/faces/card-face-09.jpg', import.meta.url).href,
+  'card-face-10': new URL('./assets/cards/scanned/faces/card-face-10.jpg', import.meta.url).href,
+  'card-face-11': new URL('./assets/cards/scanned/faces/card-face-11.jpg', import.meta.url).href,
+  'card-face-12': new URL('./assets/cards/scanned/faces/card-face-12.jpg', import.meta.url).href,
+  'card-face-13': new URL('./assets/cards/scanned/faces/card-face-13.jpg', import.meta.url).href,
+  'card-face-14': new URL('./assets/cards/scanned/faces/card-face-14.jpg', import.meta.url).href,
+  'card-face-15': new URL('./assets/cards/scanned/faces/card-face-15.jpg', import.meta.url).href,
+  'card-face-16': new URL('./assets/cards/scanned/faces/card-face-16.jpg', import.meta.url).href,
+  'card-face-17': new URL('./assets/cards/scanned/faces/card-face-17.jpg', import.meta.url).href,
+  'card-face-18': new URL('./assets/cards/scanned/faces/card-face-18.jpg', import.meta.url).href,
+  'card-face-19': new URL('./assets/cards/scanned/faces/card-face-19.jpg', import.meta.url).href,
+  'card-face-20': new URL('./assets/cards/scanned/faces/card-face-20.jpg', import.meta.url).href,
+  'card-face-22': new URL('./assets/cards/scanned/faces/card-face-22.jpg', import.meta.url).href,
+  'card-face-23': new URL('./assets/cards/scanned/faces/card-face-23.jpg', import.meta.url).href,
+  'card-face-24': new URL('./assets/cards/scanned/faces/card-face-24.jpg', import.meta.url).href,
+  'card-face-25': new URL('./assets/cards/scanned/faces/card-face-25.jpg', import.meta.url).href,
+  'card-face-26': new URL('./assets/cards/scanned/faces/card-face-26.jpg', import.meta.url).href,
+  'card-face-27': new URL('./assets/cards/scanned/faces/card-face-27.jpg', import.meta.url).href,
+  'card-face-28': new URL('./assets/cards/scanned/faces/card-face-28.jpg', import.meta.url).href,
+  'card-face-29': new URL('./assets/cards/scanned/faces/card-face-29.jpg', import.meta.url).href,
+  'card-face-31': new URL('./assets/cards/scanned/faces/card-face-31.jpg', import.meta.url).href,
+  'card-face-32': new URL('./assets/cards/scanned/faces/card-face-32.jpg', import.meta.url).href,
+  'card-face-33': new URL('./assets/cards/scanned/faces/card-face-33.jpg', import.meta.url).href,
+}
+
+type ScannedCardFaceId = keyof typeof scannedCardFaceUrls
+
+const scannedLocationFaces: Partial<Record<string, ScannedCardFaceId>> = {
+  Belper: 'card-face-29',
+  Birmingham: 'card-face-05',
+  'Burton-on-Trent': 'card-face-10',
+  Cannock: 'card-face-15',
+  Coalbrookdale: 'card-face-25',
+  Coventry: 'card-face-18',
+  Derby: 'card-face-01',
+  Dudley: 'card-face-20',
+  Kidderminster: 'card-face-26',
+  Leek: 'card-face-28',
+  Nuneaton: 'card-face-33',
+  Redditch: 'card-face-32',
+  Stafford: 'card-face-14',
+  Stoke: 'card-face-17',
+  'Stoke-on-Trent': 'card-face-17',
+  Stone: 'card-face-08',
+  Tamworth: 'card-face-16',
+  Uttoxeter: 'card-face-24',
+  Walsall: 'card-face-09',
+  Wolverhampton: 'card-face-11',
+  Worcester: 'card-face-27',
+}
+
+const scannedIndustryFaces: Partial<Record<Industry, ScannedCardFaceId>> = {
+  brewery: 'card-face-13',
+  coal: 'card-face-19',
+  cotton: 'card-face-04',
+  iron: 'card-face-12',
+  manufacturer: 'card-face-04',
+  pottery: 'card-face-07',
+}
+
+const scannedCardFaceUrl = (faceId: ScannedCardFaceId) =>
+  `url('${scannedCardFaceUrls[faceId]}')`
+
+const playerBoardImageUrl = new URL('./assets/player-board/player-board-reference.png', import.meta.url).href
+const playerBoardTileImageUrls = import.meta.glob('./assets/player-board/tiles/*/*.png', {
+  eager: true,
+  import: 'default',
+  query: '?url',
+}) as Record<string, string>
+const flippedPlayerBoardTileImageUrls = import.meta.glob(
+  './assets/player-board/tiles-flipped/*/*.png',
+  {
+    eager: true,
+    import: 'default',
+    query: '?url',
+  },
+) as Record<string, string>
+
+const getPlayerBoardTileImageUrl = (
+  assetColor: PlayerBoardTileAssetColor,
+  tileId: string,
+  flipped = false,
+) =>
+  flipped
+    ? flippedPlayerBoardTileImageUrls[
+        `./assets/player-board/tiles-flipped/${assetColor}/${tileId}.png`
+      ]
+    : playerBoardTileImageUrls[`./assets/player-board/tiles/${assetColor}/${tileId}.png`]
+
+const scannedLinkImageUrls = {
+  purple: {
+    canal: new URL('./assets/board/links/purple-ship.png', import.meta.url).href,
+    rail: new URL('./assets/board/links/purple-train.png', import.meta.url).href,
+  },
+  red: {
+    canal: new URL('./assets/board/links/red-boat.png', import.meta.url).href,
+    rail: new URL('./assets/board/links/red-train.png', import.meta.url).href,
+  },
+  white: {
+    canal: new URL('./assets/board/links/white-boat.png', import.meta.url).href,
+    rail: new URL('./assets/board/links/white-train.png', import.meta.url).href,
+  },
+  yellow: {
+    canal: new URL('./assets/board/links/yellow-boat.png', import.meta.url).href,
+    rail: new URL('./assets/board/links/yellow-train.png', import.meta.url).href,
+  },
+}
+
+type ScannedLinkAssetColor = keyof typeof scannedLinkImageUrls
+
+const scannedLinkAssetColorByPlayerColor = {
+  white: 'white',
+  red: 'red',
+  blue: 'purple',
+  green: 'yellow',
+} satisfies Record<PlayerColor, ScannedLinkAssetColor>
+
+const getScannedLinkImageUrl = (
+  playerColor: PlayerColor | undefined,
+  kind: LinkTilePlacement['kind'],
+) => scannedLinkImageUrls[playerColor ? scannedLinkAssetColorByPlayerColor[playerColor] : 'white'][kind]
+
 type DragPayload =
   | {
       type: 'industry'
       tile: IndustryTilePlacement
+      sourceDevelopedPlayerId?: string
+      sourcePlayerBoardPlayerId?: string
+      sourcePlayerBoardTileId?: string
+      sourceSpaceId?: string
     }
   | {
       type: 'link'
       tile: LinkTilePlacement
+      sourceSpaceId?: string
     }
   | {
       type: 'market-resource'
@@ -87,23 +268,19 @@ type ResourceCubeDragPayload = Omit<MarketResourcePlacement, 'spaceId'> & {
 
 type CalibrationTarget =
   | {
-      type: 'beer'
+      type: 'merchant'
+      id: string
+    }
+  | {
+      type: 'player-board-tile'
       id: string
     }
 
 function createShuffledGameState(playerCount: PlayerCount): GameState {
-  const game = createGameState(playerCount)
-
-  return {
-    ...game,
-    stacks: {
-      ...game.stacks,
-      standard: shuffleDeck(game.stacks.standard),
-    },
-  }
+  return createGameState(playerCount, shuffleDeck(getDeckForPlayerCount(playerCount)))
 }
 
-function formatCard(card: GameCard): string {
+function formatDiscardCard(card: GameCard): string {
   if (card.kind === 'location') {
     return card.name
   }
@@ -117,27 +294,32 @@ function formatCard(card: GameCard): string {
 
 function CardFace({ card }: { card: GameCard }) {
   if (card.kind === 'location') {
+    const faceId = scannedLocationFaces[card.name]
     const style: CardStyle = {
+      ...(faceId ? { '--card-face-image': scannedCardFaceUrl(faceId) } : {}),
       '--card-tint': card.color,
     }
 
     return (
       <article className="playing-card playing-card--location" style={style}>
         <div className="playing-card__image" aria-hidden="true" />
-        <div className="playing-card__label">
-          <strong>{card.name}</strong>
-        </div>
       </article>
     )
   }
 
   if (card.kind === 'industry') {
+    const faceId = card.industries
+      .map((industry) => scannedIndustryFaces[industry])
+      .find(Boolean)
+    const style: CardStyle = faceId
+      ? {
+          '--card-face-image': scannedCardFaceUrl(faceId),
+        }
+      : {}
+
     return (
-      <article className="playing-card playing-card--industry">
+      <article className="playing-card playing-card--industry" style={style}>
         <div className="playing-card__image" aria-hidden="true" />
-        <div className="playing-card__label">
-          <strong>{formatCard(card)}</strong>
-        </div>
       </article>
     )
   }
@@ -149,54 +331,144 @@ function CardFace({ card }: { card: GameCard }) {
       className={`playing-card playing-card--wild ${
         isLocationWild ? 'playing-card--wild-location' : 'playing-card--wild-industry'
       }`}
+      style={{
+        '--card-face-image': scannedCardFaceUrl(isLocationWild ? 'card-face-02' : 'card-face-03'),
+      } as CardStyle}
     >
       <div className="playing-card__image" aria-hidden="true" />
-      <div className="playing-card__label">
-        <span>Wild</span>
-        <strong>{isLocationWild ? 'Location' : 'Industry'}</strong>
-      </div>
     </article>
   )
 }
 
-function formatBeerResourceSpacesForExport(spaces: BeerResourceSpace[]): string {
-  return `export const beerResourceSpaces: BeerResourceSpace[] = ${JSON.stringify(spaces, null, 2)}`
+function formatMerchantTileSpacesForExport(spaces: MerchantTileSpace[]): string {
+  return `export const merchantTileSpaces: MerchantTileSpace[] = ${JSON.stringify(spaces, null, 2)}`
+}
+
+function formatPlayerBoardIndustryTilesForExport(tiles: PlayerBoardIndustryTile[]): string {
+  return `export const playerBoardIndustryTiles: PlayerBoardIndustryTile[] = ${JSON.stringify(tiles, null, 2)}`
 }
 
 function App() {
   const [game, setGame] = useState<GameState | null>(null)
+  const [turnStartSnapshot, setTurnStartSnapshot] = useState<GameState | null>(null)
   const boardMapRef = useRef<HTMLDivElement | null>(null)
-  const [activePlayerIndex, setActivePlayerIndex] = useState(0)
   const [calibrationMode, setCalibrationMode] = useState(false)
   const [calibrationTarget, setCalibrationTarget] = useState<CalibrationTarget>({
-    type: 'beer',
-    id: beerResourceSpaces[0].id,
+    type: 'merchant',
+    id: merchantTileSpaces[0].id,
   })
   const calibratedIndustrySpaces = industrySpaces
   const calibratedLinkSpaces = linkSpaces
   const calibratedBoardControlSpaces = boardControlSpaces
   const [calibratedMarketResourceSpaces] = useState<MarketResourceSpace[]>(marketResourceSpaces)
-  const [calibratedBeerResourceSpaces, setCalibratedBeerResourceSpaces] =
-    useState<BeerResourceSpace[]>(beerResourceSpaces)
+  const [calibratedBeerResourceSpaces] = useState<BeerResourceSpace[]>(beerResourceSpaces)
+  const [calibratedMerchantTileSpaces, setCalibratedMerchantTileSpaces] =
+    useState<MerchantTileSpace[]>(merchantTileSpaces)
+  const [calibratedPlayerBoardIndustryTiles, setCalibratedPlayerBoardIndustryTiles] =
+    useState<PlayerBoardIndustryTile[]>(playerBoardIndustryTiles)
   const [lastCalibrationPoint, setLastCalibrationPoint] = useState<{
     x: number
     y: number
   } | null>(null)
 
-  const visibleDeckSize = useMemo(
-    () => (game ? getDeckForPlayerCount(game.playerCount).length : 0),
-    [game],
-  )
+  const activePlayerIndex = game?.activePlayerIndex ?? 0
   const activePlayer = game?.players[activePlayerIndex]
+  const otherPlayers = game?.players.filter((_, index) => index !== activePlayerIndex) ?? []
+  const isGameEnded = game?.status === 'ended'
+  const activeEraLinkKind: LinkTilePlacement['kind'] = game?.era === 'rail' ? 'rail' : 'canal'
+  const activeEraLinkLabel = activeEraLinkKind === 'canal' ? 'Canal era' : 'Rail era'
+  const activeEraLinkImageUrl = getScannedLinkImageUrl(activePlayer?.color, activeEraLinkKind)
+  const requiredEndTurnHandSize = game ? getRequiredEndTurnHandSize(game) : HAND_LIMIT
+  const canPassTurn =
+    Boolean(game && activePlayer && game.status === 'playing') &&
+    activePlayer?.hand.length === requiredEndTurnHandSize
+  const activePlayerBoardAssetColor = activePlayer
+    ? getPlayerBoardAssetColor(activePlayer.color)
+    : 'white'
+  const getIndustryPlacementImageUrl = (placement?: IndustryTilePlacement) => {
+    if (!placement?.tileId) {
+      return undefined
+    }
+
+    const owner = game?.players.find((player) => player.id === placement.ownerId)
+    const assetColor = owner ? getPlayerBoardAssetColor(owner.color) : 'white'
+
+    return getPlayerBoardTileImageUrl(assetColor, placement.tileId, placement.flipped)
+  }
+  const getPlacedPlayerBoardTileCount = (playerId: string | undefined, tileId: string) =>
+    game
+      ? Object.values(game.board.industryPlacements).filter(
+          (placement) => placement.ownerId === playerId && placement.tileId === tileId,
+        ).length +
+        (game.players
+          .find((player) => player.id === playerId)
+          ?.developedIndustries.filter((tile) => tile.tileId === tileId).length ?? 0)
+      : 0
+  const getRemainingPlayerBoardTileCount = (playerId: string | undefined, tileId: string) =>
+    Math.max(0, getPlayerBoardTileCount(tileId) - getPlacedPlayerBoardTileCount(playerId, tileId))
+  const activePlayerRemainingTileCounts = Object.fromEntries(
+    playerBoardIndustryTiles.map((tile) => [
+      tile.id,
+      getRemainingPlayerBoardTileCount(activePlayer?.id, tile.id),
+    ]),
+  )
+  const getLinkPlacementImageUrl = (placement?: LinkTilePlacement) => {
+    if (!placement) {
+      return undefined
+    }
+
+    const owner = game?.players.find((player) => player.id === placement.ownerId)
+
+    return getScannedLinkImageUrl(owner?.color, placement.kind)
+  }
   const isHandFull = activePlayer ? activePlayer.hand.length >= HAND_LIMIT : false
+  const visibleMerchantTilePlacements = game
+    ? getVisibleMerchantTilePlacements(game.board)
+    : {}
+  const getPlayerPieceStyle = (ownerId: string | undefined): BoardPieceStyle => {
+    const owner = game?.players.find((player) => player.id === ownerId)
+
+    if (!owner) {
+      return {}
+    }
+
+    return {
+      '--owner-color': playerColorStyles[owner.color].color,
+      '--owner-text-color': playerColorStyles[owner.color].text,
+    }
+  }
 
   const startGame = (nextPlayerCount: PlayerCount) => {
-    setGame(createShuffledGameState(nextPlayerCount))
-    setActivePlayerIndex(0)
+    const nextGame = createShuffledGameState(nextPlayerCount)
+    setGame(nextGame)
+    setTurnStartSnapshot(nextGame)
+  }
+
+  const passActiveTurn = () => {
+    if (!game) {
+      return
+    }
+
+    const nextGame = passTurn(game)
+
+    if (nextGame === game) {
+      return
+    }
+
+    setGame(nextGame)
+    setTurnStartSnapshot(nextGame.status === 'playing' ? nextGame : null)
+  }
+
+  const resetActiveTurn = () => {
+    if (!turnStartSnapshot) {
+      return
+    }
+
+    setGame(turnStartSnapshot)
   }
 
   const drawFrom = (source: StackKey) => {
-    if (!game || !activePlayer || isHandFull) {
+    if (!game || !activePlayer || isHandFull || isGameEnded) {
       return
     }
 
@@ -235,7 +507,7 @@ function App() {
   }
 
   const discardFromActiveHand = (cardId: string) => {
-    if (!game || !activePlayer) {
+    if (!game || !activePlayer || isGameEnded) {
       return
     }
 
@@ -267,6 +539,70 @@ function App() {
       event.dataTransfer.setDragImage(dragImage, 9, 9)
       window.setTimeout(() => dragImage.remove(), 0)
     }
+
+    if (payload.type === 'link') {
+      const owner = game?.players.find((player) => player.id === payload.tile.ownerId)
+      const dragImage = document.createElement('span')
+      dragImage.style.backgroundColor = 'transparent'
+      dragImage.style.backgroundImage = `url('${getScannedLinkImageUrl(owner?.color, payload.tile.kind)}')`
+      dragImage.style.backgroundPosition = 'center'
+      dragImage.style.backgroundRepeat = 'no-repeat'
+      dragImage.style.backgroundSize = 'contain'
+      dragImage.style.boxShadow = '0 4px 10px rgba(0, 0, 0, 0.42)'
+      dragImage.style.height = '28px'
+      dragImage.style.left = '-9999px'
+      dragImage.style.position = 'fixed'
+      dragImage.style.top = '-9999px'
+      dragImage.style.width = '56px'
+      document.body.append(dragImage)
+      event.dataTransfer.setDragImage(dragImage, 28, 14)
+      window.setTimeout(() => dragImage.remove(), 0)
+    }
+
+    if (payload.type === 'industry') {
+      const imageUrl = getIndustryPlacementImageUrl(payload.tile)
+
+      if (imageUrl) {
+        const dragImage = document.createElement('span')
+        dragImage.style.backgroundImage = `url('${imageUrl}')`
+        dragImage.style.backgroundPosition = 'center'
+        dragImage.style.backgroundRepeat = 'no-repeat'
+        dragImage.style.backgroundSize = 'cover'
+        dragImage.style.borderRadius = '4px'
+        dragImage.style.boxShadow = '0 4px 10px rgba(0, 0, 0, 0.42)'
+        dragImage.style.height = '56px'
+        dragImage.style.left = '-9999px'
+        dragImage.style.position = 'fixed'
+        dragImage.style.top = '-9999px'
+        dragImage.style.width = '56px'
+        document.body.append(dragImage)
+        event.dataTransfer.setDragImage(dragImage, 28, 28)
+        window.setTimeout(() => dragImage.remove(), 0)
+      }
+    }
+  }
+
+  const consumePlayerBoardFlippedSource = (
+    currentGame: GameState,
+    payload: Extract<DragPayload, { type: 'industry' }>,
+  ) =>
+    payload.tile.flipped && payload.sourcePlayerBoardPlayerId && payload.sourcePlayerBoardTileId
+      ? consumeFlippedPlayerBoardIndustryTile(
+          currentGame,
+          payload.sourcePlayerBoardPlayerId,
+          payload.sourcePlayerBoardTileId,
+        )
+      : currentGame
+
+  const flipIndustryAtSpace = (spaceId: string) => {
+    setGame((currentGame) =>
+      currentGame
+        ? {
+            ...currentGame,
+            board: flipIndustryTile(currentGame.board, spaceId),
+          }
+        : currentGame,
+    )
   }
 
   const dropOnIndustrySpace = (
@@ -281,14 +617,39 @@ function App() {
     }
 
     if (payload.type === 'industry') {
-      setGame((currentGame) =>
-        currentGame
-          ? {
-              ...currentGame,
-              board: placeIndustryTile(currentGame.board, spaceId, payload.tile),
-            }
-          : currentGame,
-      )
+      setGame((currentGame) => {
+        if (!currentGame) {
+          return currentGame
+        }
+
+        const board = payload.sourceSpaceId
+          ? moveIndustryTile(
+              currentGame.board,
+              payload.sourceSpaceId,
+              spaceId,
+              payload.tile,
+            )
+          : placeIndustryTile(currentGame.board, spaceId, payload.tile)
+
+        const nextGame = {
+          ...currentGame,
+          board,
+        }
+
+        if (board === currentGame.board) {
+          return nextGame
+        }
+
+        const withoutDevelopedSource = payload.sourceDevelopedPlayerId
+          ? removeDevelopedIndustryTile(
+              nextGame,
+              payload.sourceDevelopedPlayerId,
+              payload.tile.id,
+            )
+          : nextGame
+
+        return consumePlayerBoardFlippedSource(withoutDevelopedSource, payload)
+      })
       return
     }
 
@@ -339,18 +700,28 @@ function App() {
     event.preventDefault()
     const payload = JSON.parse(event.dataTransfer.getData('application/json')) as DragPayload
 
-    if (!game || payload.type !== 'link') {
+    if (!game || payload.type !== 'link' || payload.tile.kind !== activeEraLinkKind) {
       return
     }
 
-    setGame((currentGame) =>
-      currentGame
-        ? {
-            ...currentGame,
-            board: placeLinkTile(currentGame.board, spaceId, payload.tile),
-          }
-        : currentGame,
-    )
+    setGame((currentGame) => {
+      if (!currentGame) {
+        return currentGame
+      }
+
+      const nextBoard = payload.sourceSpaceId
+        ? moveLinkTile(currentGame.board, payload.sourceSpaceId, spaceId, payload.tile)
+        : placeLinkTile(currentGame.board, spaceId, payload.tile)
+
+      if (nextBoard === currentGame.board) {
+        return currentGame
+      }
+
+      return {
+        ...currentGame,
+        board: nextBoard,
+      }
+    })
   }
 
   const dropOnMarketResourceSpace = (
@@ -472,6 +843,75 @@ function App() {
     )
   }
 
+  const dropOnDevelopedIndustries = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    const payload = JSON.parse(event.dataTransfer.getData('application/json')) as DragPayload
+
+    if (
+      !game ||
+      payload.type !== 'industry' ||
+      payload.sourceDevelopedPlayerId ||
+      !payload.tile.tileId ||
+      !isPlayerBoardTileDevelopable(payload.tile.tileId)
+    ) {
+      return
+    }
+
+    setGame((currentGame) => {
+      if (!currentGame) {
+        return currentGame
+      }
+
+      const withRemovedSource = payload.sourceSpaceId
+        ? {
+            ...currentGame,
+            board: removeIndustryTile(currentGame.board, payload.sourceSpaceId),
+          }
+        : currentGame
+
+      const withDevelopedTile = developIndustryTile(withRemovedSource, payload.tile.ownerId, payload.tile)
+
+      return consumePlayerBoardFlippedSource(withDevelopedTile, payload)
+    })
+  }
+
+  const dropOnPlayerBoard = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    const payload = JSON.parse(event.dataTransfer.getData('application/json')) as DragPayload
+
+    if (
+      !game ||
+      payload.type !== 'industry' ||
+      !payload.tile.tileId ||
+      (!payload.sourceDevelopedPlayerId && !payload.sourceSpaceId)
+    ) {
+      return
+    }
+
+    setGame((currentGame) => {
+      if (!currentGame) {
+        return currentGame
+      }
+
+      const withRemovedSource = payload.sourceDevelopedPlayerId
+        ? removeDevelopedIndustryTile(currentGame, payload.sourceDevelopedPlayerId, payload.tile.id)
+        : payload.sourceSpaceId
+          ? {
+              ...currentGame,
+              board: removeIndustryTile(currentGame.board, payload.sourceSpaceId),
+            }
+          : currentGame
+
+      return payload.tile.flipped && payload.tile.tileId
+        ? restoreFlippedPlayerBoardIndustryTile(
+            withRemovedSource,
+            payload.tile.ownerId,
+            payload.tile.tileId,
+          )
+        : withRemovedSource
+    })
+  }
+
   const removeResourceCubeFromBoard = (cube: ResourceCubeDragPayload) => {
     setGame((currentGame) =>
       currentGame && cube.sourceSpaceId
@@ -518,18 +958,110 @@ function App() {
     }
   }
 
+  const removeLinkWhenDraggedOffBoard = (
+    event: React.DragEvent<HTMLElement>,
+    sourceSpaceId: string,
+  ) => {
+    const boardRect = boardMapRef.current?.getBoundingClientRect()
+
+    if (!boardRect) {
+      return
+    }
+
+    const wasDroppedOutsideBoard =
+      event.clientX < boardRect.left ||
+      event.clientX > boardRect.right ||
+      event.clientY < boardRect.top ||
+      event.clientY > boardRect.bottom
+
+    if (wasDroppedOutsideBoard) {
+      setGame((currentGame) =>
+        currentGame
+          ? {
+              ...currentGame,
+              board: removeLinkTile(currentGame.board, sourceSpaceId),
+            }
+          : currentGame,
+      )
+    }
+  }
+
+  const removeIndustryWhenDraggedOffBoard = (
+    event: React.DragEvent<HTMLElement>,
+    sourceSpaceId: string,
+  ) => {
+    const boardRect = boardMapRef.current?.getBoundingClientRect()
+
+    if (!boardRect) {
+      return
+    }
+
+    const wasDroppedOutsideBoard =
+      event.clientX < boardRect.left ||
+      event.clientX > boardRect.right ||
+      event.clientY < boardRect.top ||
+      event.clientY > boardRect.bottom
+
+    if (wasDroppedOutsideBoard) {
+      setGame((currentGame) =>
+        currentGame
+          ? {
+              ...currentGame,
+              board: removeIndustryTile(currentGame.board, sourceSpaceId),
+            }
+          : currentGame,
+      )
+    }
+  }
+
   const adjustPlayerScore = (
     playerId: string,
     field: 'victoryPoints' | 'income',
     delta: number,
   ) => {
+    if (isGameEnded) {
+      return
+    }
+
     setGame((currentGame) =>
       currentGame ? updatePlayerScore(currentGame, playerId, field, delta) : currentGame,
     )
   }
 
+  const adjustActivePlayerMoney = (delta: number) => {
+    if (!activePlayer || isGameEnded) {
+      return
+    }
+
+    setGame((currentGame) =>
+      currentGame ? updatePlayerMoney(currentGame, activePlayer.id, delta) : currentGame,
+    )
+  }
+
+  const flipActivePlayerDevelopedTile = (tileId: string) => {
+    if (!activePlayer) {
+      return
+    }
+
+    setGame((currentGame) =>
+      currentGame ? flipDevelopedIndustryTile(currentGame, activePlayer.id, tileId) : currentGame,
+    )
+  }
+
+  const flipActivePlayerBoardTile = (tileId: string) => {
+    if (!activePlayer) {
+      return
+    }
+
+    setGame((currentGame) =>
+      currentGame ? flipPlayerBoardIndustryTile(currentGame, activePlayer.id, tileId) : currentGame,
+    )
+  }
+
   const setCalibrationTargetFromValue = (value: string) => {
-    setCalibrationTarget({ type: 'beer', id: value })
+    const [type, id] = value.split(':') as [CalibrationTarget['type'], string]
+
+    setCalibrationTarget({ type, id } as CalibrationTarget)
   }
 
   const calibrateBoardClick = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -544,12 +1076,34 @@ function App() {
     )
     setLastCalibrationPoint(point)
 
-    setCalibratedBeerResourceSpaces((spaces) =>
-      updateBeerResourceSpaceCalibration(spaces, calibrationTarget.id, point),
+    if (calibrationTarget.type === 'merchant') {
+      setCalibratedMerchantTileSpaces((spaces) =>
+        updateMerchantTileSpaceCalibration(spaces, calibrationTarget.id, point),
+      )
+    }
+  }
+
+  const calibratePlayerBoardClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!calibrationMode || calibrationTarget.type !== 'player-board-tile') {
+      return
+    }
+
+    const point = getBoardPointFromClientPosition(
+      event.currentTarget.getBoundingClientRect(),
+      event.clientX,
+      event.clientY,
+    )
+    setLastCalibrationPoint(point)
+
+    setCalibratedPlayerBoardIndustryTiles((tiles) =>
+      updatePlayerBoardTileCalibration(tiles, calibrationTarget.id, point),
     )
   }
 
-  const calibrationExport = formatBeerResourceSpacesForExport(calibratedBeerResourceSpaces)
+  const calibrationExport = [
+    formatMerchantTileSpacesForExport(calibratedMerchantTileSpaces),
+    formatPlayerBoardIndustryTilesForExport(calibratedPlayerBoardIndustryTiles),
+  ].join('\n\n')
 
   if (!game) {
     return (
@@ -579,11 +1133,6 @@ function App() {
         <div>
           <p className="eyebrow">Offline setup module</p>
           <h1 id="page-title">Brass: Birmingham card room</h1>
-          <p className="lede">
-            {game.playerCount}-player game in progress. The player count is
-            locked for this session; choose a local player below and draw into
-            their eight-card hand.
-          </p>
         </div>
 
         <div className="deck-tile" aria-label="Selected player draw deck">
@@ -597,17 +1146,14 @@ function App() {
         <div>
           <p className="eyebrow">Game setup locked</p>
           <h2>{game.playerCount} local players</h2>
-          <p>
-            The standard deck uses {visibleDeckSize} cards. You control every
-            player and can switch the active hand below.
-          </p>
         </div>
         <div className="player-buttons" aria-label="Active local player">
           {game.players.map((player, index) => (
             <button
               className={index === activePlayerIndex ? 'is-active' : ''}
+              disabled={index !== activePlayerIndex || isGameEnded}
               key={player.id}
-              onClick={() => setActivePlayerIndex(index)}
+              style={getPlayerPieceStyle(player.id)}
               type="button"
             >
               {player.name}
@@ -620,7 +1166,6 @@ function App() {
         <div className="panel__header">
           <p className="eyebrow">Score tracker</p>
           <h2>VP and income</h2>
-          <p>Use the controls below to adjust each local player directly.</p>
         </div>
         <div className="score-grid">
           {game.players.map((player) => (
@@ -630,6 +1175,7 @@ function App() {
                 <span>VP</span>
                 <button
                   aria-label={`Decrease ${player.name} VP`}
+                  disabled={isGameEnded}
                   onClick={() => adjustPlayerScore(player.id, 'victoryPoints', -1)}
                   type="button"
                 >
@@ -638,6 +1184,7 @@ function App() {
                 <strong>{player.victoryPoints}</strong>
                 <button
                   aria-label={`Increase ${player.name} VP`}
+                  disabled={isGameEnded}
                   onClick={() => adjustPlayerScore(player.id, 'victoryPoints', 1)}
                   type="button"
                 >
@@ -648,19 +1195,21 @@ function App() {
                 <span>Income</span>
                 <button
                   aria-label={`Decrease ${player.name} income`}
+                  disabled={isGameEnded}
                   onClick={() => adjustPlayerScore(player.id, 'income', -1)}
                   type="button"
                 >
                   -
                 </button>
                 <strong>{player.income}</strong>
-                <button
+        <button
                   aria-label={`Increase ${player.name} income`}
+                  disabled={isGameEnded}
                   onClick={() => adjustPlayerScore(player.id, 'income', 1)}
-                  type="button"
-                >
+          type="button"
+        >
                   +
-                </button>
+        </button>
               </div>
             </article>
           ))}
@@ -671,20 +1220,12 @@ function App() {
         <div className="panel__header">
           <p className="eyebrow">Board prototype</p>
           <h2>Drag tiles onto the map</h2>
-          <p>
-            Use the calibrated board spaces, on-board draw stacks, and market
-            markers over your board image.
-          </p>
         </div>
 
         <div className="calibration-panel">
           <div>
             <p className="eyebrow">Calibration</p>
-            <h3>Click-to-position beer slots</h3>
-            <p>
-              Enable calibration, choose a board beer slot, then click
-              the exact spot on the board.
-            </p>
+            <h3>Click-to-position board pieces</h3>
           </div>
           <button
             className={calibrationMode ? 'is-active' : ''}
@@ -697,12 +1238,19 @@ function App() {
             Target
             <select
               onChange={(event) => setCalibrationTargetFromValue(event.target.value)}
-              value={calibrationTarget.id}
+              value={`${calibrationTarget.type}:${calibrationTarget.id}`}
             >
-              <optgroup label="Board beer spots">
-                {calibratedBeerResourceSpaces.map((space) => (
-                  <option key={space.id} value={space.id}>
+              <optgroup label="Merchant tiles">
+                {calibratedMerchantTileSpaces.map((space) => (
+                  <option key={space.id} value={`merchant:${space.id}`}>
                     {space.id}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Player board tiles">
+                {calibratedPlayerBoardIndustryTiles.map((tile) => (
+                  <option key={tile.id} value={`player-board-tile:${tile.id}`}>
+                    {tile.id}
                   </option>
                 ))}
               </optgroup>
@@ -717,84 +1265,225 @@ function App() {
 
         <div className="board-layout">
           <aside className="tile-palette" aria-label="Draggable tile palette">
-            <div>
-              <h3>Industry tiles</h3>
-              <div className="palette-grid">
-                {industries.map((industry) => (
-                  <button
-                    className="palette-tile palette-tile--industry"
-                    draggable
-                    key={industry}
-                    onDragStart={(event) =>
-                      dragPiece(event, {
-                        type: 'industry',
-                        tile: {
-                          id: `${activePlayer?.id}-${industry}-${Date.now()}`,
-                          industry,
-                          ownerId: activePlayer?.id ?? 'player-1',
-                        },
-                      })
-                    }
-                    type="button"
-                  >
-                    {industry}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <div className="player-board-panel">
+              <h3>{activePlayer?.name} board</h3>
+              <div
+                className={`player-board-surface ${calibrationMode ? 'is-calibrating' : ''}`}
+                onClick={calibratePlayerBoardClick}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={dropOnPlayerBoard}
+              >
+                <img src={playerBoardImageUrl} alt={`${activePlayer?.name ?? 'Player'} industry board`} />
+                <div className="player-board-tile-grid">
+                  {calibratedPlayerBoardIndustryTiles.map((tile) => {
+                    const remainingCount = getRemainingPlayerBoardTileCount(activePlayer?.id, tile.id)
+                    const isTopTileFlipped = Boolean(
+                      activePlayer?.flippedPlayerBoardTileIds.includes(tile.id),
+                    )
+                    const imageUrl = getPlayerBoardTileImageUrl(
+                      activePlayerBoardAssetColor,
+                      tile.id,
+                      isTopTileFlipped,
+                    )
+                    const canDevelopTile = isPlayerBoardTileDevelopable(tile.id)
+                    const canUseTile =
+                      remainingCount > 0 &&
+                      isPlayerBoardIndustryTileUsable(tile.id, activePlayerRemainingTileCounts)
+                    const canFlipTile = remainingCount > 0
 
-            <div>
-              <h3>Link tiles</h3>
-              <div className="palette-grid">
-                {linkKinds.map((kind) => (
-                  <button
-                    className="palette-tile palette-tile--link"
-                    draggable
-                    key={kind}
-                    onDragStart={(event) =>
-                      dragPiece(event, {
-                        type: 'link',
-                        tile: {
-                          id: `${activePlayer?.id}-${kind}-${Date.now()}`,
-                          kind,
-                          ownerId: activePlayer?.id ?? 'player-1',
-                        },
-                      })
-                    }
-                    type="button"
-                  >
-                    {kind}
-                  </button>
-                ))}
-              </div>
-            </div>
+                    return (
+                      <button
+                        aria-label={`Build ${tile.industry} level ${tile.level}`}
+                        className={`player-board-tile ${remainingCount === 0 ? 'is-exhausted' : ''} ${
+                          isTopTileFlipped ? 'is-flipped' : ''
+                        } ${
+                          !canUseTile && remainingCount > 0 ? 'is-blocked' : ''
+                        }`}
+                        disabled={remainingCount === 0}
+                        draggable={canUseTile}
+                        key={tile.id}
+                        onDoubleClick={(event) => {
+                          event.stopPropagation()
 
-            <div>
-              <h3>Resource cubes</h3>
-              <div className="resource-bank" onDragOver={(event) => event.preventDefault()} onDrop={dropOnResourceBank}>
-                <div className="palette-grid">
-                  {resourceCubeKinds.map((kind) => (
+                          if (canFlipTile) {
+                            flipActivePlayerBoardTile(tile.id)
+                          }
+                        }}
+                        onDragStart={(event) => {
+                          if (!canUseTile) {
+                            event.preventDefault()
+                            return
+                          }
+
+                          dragPiece(event, {
+                            type: 'industry',
+                            tile: {
+                              id: `${activePlayer?.id}-${tile.id}-${Date.now()}`,
+                              industry: tile.industry,
+                              ownerId: activePlayer?.id ?? 'player-1',
+                              tileId: tile.id,
+                              flipped: isTopTileFlipped,
+                            },
+                            sourcePlayerBoardPlayerId: activePlayer?.id,
+                            sourcePlayerBoardTileId: tile.id,
+                          })
+                        }}
+                        style={{
+                          backgroundImage: imageUrl ? `url('${imageUrl}')` : undefined,
+                          left: `${tile.x}%`,
+                          top: `${tile.y}%`,
+                        }}
+                        title={`${tile.industry} ${tile.level}: ${remainingCount} remaining${
+                          canUseTile ? '' : ', lower level remains'
+                        }${canDevelopTile ? '' : ', cannot develop'}${
+                          canFlipTile ? ', double-click to flip top tile' : ''
+                        }`}
+                        type="button"
+                      >
+                        {remainingCount > 1 ? <span className="player-board-tile-count">{remainingCount}</span> : null}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+              <div className="player-money-panel" aria-label={`${activePlayer?.name} money`}>
+                <div className="player-money-panel__header">
+                  <span>Money</span>
+                  <strong>{activePlayer?.money ?? 0}</strong>
+                </div>
+                <div className="player-money-panel__actions">
+                  {[-10, -5, -1, 1, 5, 10].map((delta) => (
                     <button
-                      className={`resource-cube-button resource-cube-button--${kind}`}
-                      draggable
-                      key={kind}
-                      onDragStart={(event) =>
-                        dragPiece(event, {
-                          type: 'market-resource',
-                          cube: {
-                            id: `${kind}-cube-${Date.now()}`,
-                            kind,
-                          },
-                        })
-                      }
+                      aria-label={`${delta > 0 ? 'Increase' : 'Decrease'} ${activePlayer?.name} money by ${Math.abs(delta)}`}
+                      disabled={isGameEnded}
+                      key={delta}
+                      onClick={() => adjustActivePlayerMoney(delta)}
                       type="button"
                     >
-                      <span aria-hidden="true" />
-                      <strong>{kind}</strong>
+                      {delta > 0 ? `+${delta}` : delta}
                     </button>
                   ))}
                 </div>
               </div>
+              <div className="other-player-money-panel" aria-label="Other players' money">
+                <div className="other-player-money-list">
+                  {otherPlayers.map((player) => (
+                    <div
+                      className="other-player-money-row"
+                      key={player.id}
+                      style={getPlayerPieceStyle(player.id)}
+                    >
+                      <span>{player.name}</span>
+                      <strong>{player.money}</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="turn-control-panel" aria-label="Turn controls">
+                <div className="turn-control-panel__actions">
+                  <button disabled={!canPassTurn} onClick={passActiveTurn} type="button">
+                    Pass turn
+                  </button>
+                  <button
+                    disabled={!turnStartSnapshot || isGameEnded}
+                    onClick={resetActiveTurn}
+                    type="button"
+                  >
+                    Reset turn
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="link-era-panel">
+              <div className="link-era-panel__header">
+                <h3>{activeEraLinkLabel}</h3>
+                <button
+                  aria-label={`Build ${activeEraLinkKind} link`}
+                  className="palette-tile palette-tile--link link-era-panel__tile"
+                  draggable={!isGameEnded}
+                  onDragStart={(event) =>
+                    dragPiece(event, {
+                      type: 'link',
+                      tile: {
+                        id: `${activePlayer?.id}-${activeEraLinkKind}-${Date.now()}`,
+                        kind: activeEraLinkKind,
+                        ownerId: activePlayer?.id ?? 'player-1',
+                      },
+                    })
+                  }
+                  type="button"
+                >
+                  <span
+                    aria-hidden="true"
+                      className="palette-link-icon"
+                    style={{
+                      backgroundImage: `url('${activeEraLinkImageUrl}')`,
+                    }}
+                  />
+                </button>
+              </div>
+            </div>
+
+            <div
+              className="developed-industries"
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={dropOnDevelopedIndustries}
+            >
+              <h3>Developed industries / Outdated industries</h3>
+              <div className="developed-industries-grid">
+                {activePlayer?.developedIndustries.map((tile) => {
+                  const imageUrl = getIndustryPlacementImageUrl(tile)
+
+                  return (
+                    <button
+                      aria-label={`Move developed or outdated ${tile.industry}`}
+                      className={`developed-industry-tile ${tile.flipped ? 'is-flipped' : ''}`}
+                      draggable
+                      key={tile.id}
+                      onDoubleClick={(event) => {
+                        event.stopPropagation()
+                        flipActivePlayerDevelopedTile(tile.id)
+                      }}
+                      onDragStart={(event) =>
+                        dragPiece(event, {
+                          type: 'industry',
+                          tile,
+                          sourceDevelopedPlayerId: activePlayer.id,
+                        })
+                      }
+                      style={{
+                        backgroundImage: imageUrl ? `url('${imageUrl}')` : undefined,
+                      }}
+                      title={`Developed or outdated ${tile.industry}, double-click to flip`}
+                      type="button"
+                    />
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="resource-bank" onDragOver={(event) => event.preventDefault()} onDrop={dropOnResourceBank}>
+              {resourceCubeKinds.map((kind) => (
+                <button
+                  className={`resource-cube-button resource-cube-button--${kind}`}
+                  draggable
+                  key={kind}
+                  onDragStart={(event) =>
+                    dragPiece(event, {
+                      type: 'market-resource',
+                      cube: {
+                        id: `${kind}-cube-${Date.now()}`,
+                        kind,
+                      },
+                    })
+                  }
+                  type="button"
+                >
+                  <span aria-hidden="true" />
+                  <strong>{kind}</strong>
+                </button>
+              ))}
             </div>
           </aside>
 
@@ -822,11 +1511,10 @@ function App() {
                   title={`${space.id}: ${space.title}`}
                 >
                   <div className="board-overlay-card__face" aria-hidden="true" />
+                  <strong className="board-overlay-card-count">{stackCount}</strong>
                   <div className="board-overlay-card__hud">
-                    <span>{space.title}</span>
-                    <strong>{stackCount}</strong>
                     <button
-                      disabled={isHandFull || stackCount === 0}
+                      disabled={isGameEnded || isHandFull || stackCount === 0}
                       onClick={() => drawFrom(space.stack)}
                       type="button"
                     >
@@ -931,32 +1619,97 @@ function App() {
               )
             })}
 
+            {calibratedMerchantTileSpaces.map((space) => {
+              const placement = visibleMerchantTilePlacements[space.id]
+
+              if (!calibrationMode && !placement) {
+                return null
+              }
+
+              return (
+                <div
+                  aria-label={
+                    placement
+                      ? `${space.label}: ${placement.label}`
+                      : `${space.label} merchant tile spot`
+                  }
+                  className={`board-space board-space--merchant ${
+                    placement ? 'is-active' : 'is-calibration-only'
+                  } ${placement ? `board-space--merchant-${placement.kind}` : ''}`}
+                  key={space.id}
+                  onClick={(event) => event.stopPropagation()}
+                  style={{
+                    left: `${space.x}%`,
+                    top: `${space.y}%`,
+                  }}
+                  title={
+                    placement
+                      ? `${space.id}: ${placement.label}`
+                      : `${space.id}: ${space.label}`
+                  }
+                >
+                  {placement ? <span aria-hidden="true" className="merchant-tile-face" /> : `M${space.merchantIndex}`}
+                </div>
+              )
+            })}
+
             {calibratedIndustrySpaces.map((space) => {
               const placement = game.board.industryPlacements[space.id]
               const resources = game.board.industryResourcePlacements[space.id] ?? []
+              const placementImageUrl = getIndustryPlacementImageUrl(placement)
+              const canDragIndustryTile = Boolean(placement && resources.length === 0)
+              const canFlipIndustryTile = canDragIndustryTile
 
               return (
                 <button
                   aria-label={`${space.id}: ${space.city}, allows ${space.allowedIndustries.join(
                     ' or ',
                   )}`}
-                  title={`${space.id}: ${space.allowedIndustries.join(' / ')}`}
+                  title={`${space.id}: ${space.allowedIndustries.join(' / ')}${
+                    canFlipIndustryTile ? ', double-click to flip' : ''
+                  }`}
                   className={`board-space board-space--industry ${
                     placement ? 'is-occupied' : ''
+                  } ${placement?.flipped ? 'is-flipped' : ''} ${
+                    placementImageUrl ? 'has-tile-image' : ''
                   }`}
+                  draggable={canDragIndustryTile}
                   key={space.id}
                   onClick={(event) => event.stopPropagation()}
+                  onDoubleClick={(event) => {
+                    event.stopPropagation()
+
+                    if (canFlipIndustryTile) {
+                      flipIndustryAtSpace(space.id)
+                    }
+                  }}
+                  onDragEnd={(event) => {
+                    if (canDragIndustryTile) {
+                      removeIndustryWhenDraggedOffBoard(event, space.id)
+                    }
+                  }}
                   onDragOver={(event) => event.preventDefault()}
+                  onDragStart={(event) => {
+                    if (placement && canDragIndustryTile) {
+                      dragPiece(event, {
+                        type: 'industry',
+                        tile: placement,
+                        sourceSpaceId: space.id,
+                      })
+                    }
+                  }}
                   onDrop={(event) => dropOnIndustrySpace(event, space.id)}
                   style={{
                     left: `${space.x}%`,
                     top: `${space.y}%`,
+                    ...(placementImageUrl
+                      ? { '--industry-tile-image': `url('${placementImageUrl}')` }
+                      : {}),
+                    ...getPlayerPieceStyle(placement?.ownerId),
                   }}
                   type="button"
                 >
-                  <span className="industry-space-label">
-                    {placement ? placement.industry : space.allowedIndustries.map((industry) => industry[0]).join('/')}
-                  </span>
+                  {placement && !placementImageUrl ? <span className="industry-space-label">{placement.industry}</span> : null}
                   {resources.length > 0 ? (
                     <span className="industry-resource-stack">
                       {resources.map((cube) => (
@@ -995,6 +1748,7 @@ function App() {
 
             {calibratedLinkSpaces.map((space) => {
               const placement = game.board.linkPlacements[space.id]
+              const placementImageUrl = getLinkPlacementImageUrl(placement)
 
               return (
                 <button
@@ -1003,20 +1757,39 @@ function App() {
                   )}`}
                   title={`${space.id}: ${space.allowedKinds.join(' / ')}`}
                   className={`board-space board-space--link ${
-                    placement ? 'is-occupied' : ''
+                    placement ? `is-occupied board-space--link-${placement.kind}` : ''
                   }`}
+                  draggable={Boolean(placement)}
                   key={space.id}
                   onClick={(event) => event.stopPropagation()}
+                  onDragEnd={(event) => {
+                    if (placement) {
+                      removeLinkWhenDraggedOffBoard(event, space.id)
+                    }
+                  }}
                   onDragOver={(event) => event.preventDefault()}
+                  onDragStart={(event) => {
+                    if (placement) {
+                      dragPiece(event, {
+                        type: 'link',
+                        tile: placement,
+                        sourceSpaceId: space.id,
+                      })
+                    }
+                  }}
                   onDrop={(event) => dropOnLinkSpace(event, space.id)}
                   style={{
                     left: `${space.x}%`,
                     top: `${space.y}%`,
                     transform: `translate(-50%, -50%) rotate(${space.rotation}deg)`,
+                    ...(placementImageUrl
+                      ? { '--link-tile-image': `url('${placementImageUrl}')` }
+                      : {}),
+                    ...getPlayerPieceStyle(placement?.ownerId),
                   }}
                   type="button"
                 >
-                  {placement ? placement.kind : ''}
+                  {placement ? <span aria-hidden="true" className="link-piece-icon" /> : ''}
                 </button>
               )
             })}
@@ -1033,10 +1806,6 @@ function App() {
         <div className="panel__header">
           <p className="eyebrow">Active hand</p>
           <h2>{activePlayer?.name}</h2>
-          <p>
-            Draw cards into this player&apos;s eight slots. Switch players above
-            to manage every hand yourself.
-          </p>
         </div>
         <div className="hand-grid">
           {Array.from({ length: HAND_LIMIT }).map((_, index) => {
@@ -1050,6 +1819,7 @@ function App() {
                 <CardFace card={handCard} />
                 <button
                   className="discard-card-button"
+                  disabled={isGameEnded}
                   onClick={() => discardFromActiveHand(handCard.id)}
                   type="button"
                 >
@@ -1069,10 +1839,6 @@ function App() {
         <div className="panel__header">
           <p className="eyebrow">Shared discard pile</p>
           <h2>{game.discardPile.length} standard cards</h2>
-          <p>
-            Location and industry cards go here when played. Wild cards return
-            to their face-up stacks instead.
-          </p>
         </div>
         {game.discardPile.length === 0 ? (
           <p>No standard cards discarded yet.</p>
@@ -1080,7 +1846,7 @@ function App() {
           <ol className="discard-list">
             {game.discardPile.slice(-6).reverse().map((card) => (
               <li key={card.id}>
-                <strong>{formatCard(card)}</strong>
+                <strong>{formatDiscardCard(card)}</strong>
                 <span>{card.kind === 'location' ? 'Location' : 'Industry'}</span>
               </li>
             ))}
@@ -1088,41 +1854,6 @@ function App() {
         )}
       </section>
 
-      <section className="table-layout">
-        <article className="panel">
-          <div className="panel__header">
-            <p className="eyebrow">Draw deck</p>
-            <h2>Standard card mix</h2>
-          </div>
-          <dl className="card-breakdown">
-            {Object.entries(industryCounts).map(([industry, count]) => (
-              <div key={industry}>
-                <dt>{industry}</dt>
-                <dd>{count}</dd>
-              </div>
-            ))}
-          </dl>
-        </article>
-
-        <article className="panel wild-panel">
-          <div className="panel__header">
-            <p className="eyebrow">Face-up stacks</p>
-            <h2>Wild card supply</h2>
-          </div>
-          <div className="wild-stacks">
-            <div className="wild-stack">
-              <span>Wild location</span>
-              <strong>{game.stacks.wildLocation.length}</strong>
-              <p>May stand in for any named location except farm breweries.</p>
-            </div>
-            <div className="wild-stack">
-              <span>Wild industry</span>
-              <strong>{game.stacks.wildIndustry.length}</strong>
-              <p>May stand in for any industry card.</p>
-            </div>
-          </div>
-        </article>
-      </section>
     </main>
   )
 }

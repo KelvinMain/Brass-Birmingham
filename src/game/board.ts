@@ -1,4 +1,4 @@
-import type { Industry } from './cards'
+import type { Industry, PlayerCount } from './cards'
 
 export type BoardPoint = {
   x: number
@@ -31,8 +31,10 @@ export type LinkSpace = BoardPoint & {
 
 export type IndustryTilePlacement = {
   id: string
+  flipped?: boolean
   industry: Industry
   ownerId: string
+  tileId?: string
 }
 
 export type LinkTilePlacement = {
@@ -68,6 +70,25 @@ export type BeerResourceSpace = BoardPoint & {
   beerIndex: number
 }
 
+export type MerchantTileSpace = BoardPoint & {
+  id: string
+  label: string
+  merchantIndex: number
+}
+
+export type MerchantTileKind = 'all' | 'cotton' | 'manufacturer' | 'none' | 'pottery'
+
+export type MerchantTile = {
+  id: string
+  tileIndex: number
+  kind: MerchantTileKind
+  label: string
+}
+
+export type MerchantTilePlacement = MerchantTile & {
+  spaceId: string
+}
+
 export type MarketResourcePlacement = {
   id: string
   kind: ResourceCubeKind
@@ -80,6 +101,7 @@ export type BoardState = {
   beerResourcePlacements: Record<string, MarketResourcePlacement>
   linkPlacements: Record<string, LinkTilePlacement>
   marketResourcePlacements: Record<string, MarketResourcePlacement>
+  merchantTilePlacements: Record<string, MerchantTilePlacement>
 }
 
 const industryResourceRules: Partial<Record<Industry, { kind: ResourceCubeKind; capacity: number }>> = {
@@ -392,6 +414,166 @@ export const beerResourceSpaces: BeerResourceSpace[] = [
     y: 89.31,
   },
 ]
+
+export const merchantTileSpaces: MerchantTileSpace[] = [
+  {
+    id: 'merchant-tile-1',
+    label: 'merchant tile 1',
+    merchantIndex: 1,
+    x: 25.44,
+    y: 13.43,
+  },
+  {
+    id: 'merchant-tile-2',
+    label: 'merchant tile 2',
+    merchantIndex: 2,
+    x: 29.91,
+    y: 13.43,
+  },
+  {
+    id: 'merchant-tile-3',
+    label: 'merchant tile 3',
+    merchantIndex: 3,
+    x: 88,
+    y: 18.99,
+  },
+  {
+    id: 'merchant-tile-4',
+    label: 'merchant tile 4',
+    merchantIndex: 4,
+    x: 92.84,
+    y: 18.99,
+  },
+  {
+    id: 'merchant-tile-5',
+    label: 'merchant tile 5',
+    merchantIndex: 5,
+    x: 8.86,
+    y: 60.26,
+  },
+  {
+    id: 'merchant-tile-6',
+    label: 'merchant tile 6',
+    merchantIndex: 6,
+    x: 79.65,
+    y: 85.91,
+  },
+  {
+    id: 'merchant-tile-7',
+    label: 'merchant tile 7',
+    merchantIndex: 7,
+    x: 84.12,
+    y: 85.91,
+  },
+  {
+    id: 'merchant-tile-8',
+    label: 'merchant tile 8',
+    merchantIndex: 8,
+    x: 57.99,
+    y: 93.05,
+  },
+  {
+    id: 'merchant-tile-9',
+    label: 'merchant tile 9',
+    merchantIndex: 9,
+    x: 62.46,
+    y: 93.05,
+  },
+]
+
+export const merchantTiles: MerchantTile[] = [
+  { id: 'merchant-tile-face-1', tileIndex: 1, kind: 'manufacturer', label: 'Man' },
+  { id: 'merchant-tile-face-2', tileIndex: 2, kind: 'cotton', label: 'Cotton' },
+  { id: 'merchant-tile-face-3', tileIndex: 3, kind: 'all', label: 'All' },
+  { id: 'merchant-tile-face-4', tileIndex: 4, kind: 'none', label: 'None' },
+  { id: 'merchant-tile-face-5', tileIndex: 5, kind: 'none', label: 'None' },
+  { id: 'merchant-tile-face-6', tileIndex: 6, kind: 'pottery', label: 'Pottery' },
+  { id: 'merchant-tile-face-7', tileIndex: 7, kind: 'none', label: 'None' },
+  { id: 'merchant-tile-face-8', tileIndex: 8, kind: 'manufacturer', label: 'Man' },
+  { id: 'merchant-tile-face-9', tileIndex: 9, kind: 'cotton', label: 'Cotton' },
+]
+
+const merchantSpaceIdsByPlayerCount: Record<PlayerCount, string[]> = {
+  2: ['merchant-tile-5', 'merchant-tile-6', 'merchant-tile-7', 'merchant-tile-8', 'merchant-tile-9'],
+  3: [
+    'merchant-tile-1',
+    'merchant-tile-2',
+    'merchant-tile-5',
+    'merchant-tile-6',
+    'merchant-tile-7',
+    'merchant-tile-8',
+    'merchant-tile-9',
+  ],
+  4: [
+    'merchant-tile-1',
+    'merchant-tile-2',
+    'merchant-tile-3',
+    'merchant-tile-4',
+    'merchant-tile-5',
+    'merchant-tile-6',
+    'merchant-tile-7',
+    'merchant-tile-8',
+    'merchant-tile-9',
+  ],
+}
+
+function shuffleMerchantTiles<T>(items: T[], random = Math.random): T[] {
+  const shuffled = [...items]
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1))
+    ;[shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]]
+  }
+
+  return shuffled
+}
+
+function createInitialMerchantTilePlacements(
+  playerCount: PlayerCount,
+  random = Math.random,
+): Record<string, MerchantTilePlacement> {
+  const spaceIds = merchantSpaceIdsByPlayerCount[playerCount]
+  const shuffledTiles = shuffleMerchantTiles(merchantTiles.slice(0, spaceIds.length), random)
+
+  return Object.fromEntries(
+    spaceIds.map((spaceId, index) => [
+      spaceId,
+      {
+        ...shuffledTiles[index],
+        spaceId,
+      },
+    ]),
+  )
+}
+
+function createMerchantBeerPlacements(
+  placements: Record<string, MerchantTilePlacement>,
+): Record<string, MarketResourcePlacement> {
+  return Object.fromEntries(
+    Object.values(placements)
+      .filter((tile) => tile.kind !== 'none')
+      .map((tile) => {
+        const spaceId = `board-beer-${tile.spaceId.replace('merchant-tile-', '')}`
+
+        return [
+          spaceId,
+          {
+            id: `${tile.spaceId}-beer-cube`,
+            kind: 'beer',
+            spaceId,
+          },
+        ]
+      }),
+  )
+}
+
+export function getVisibleMerchantTilePlacements(
+  state: BoardState,
+): Record<string, MerchantTilePlacement> {
+  return Object.fromEntries(
+    Object.entries(state.merchantTilePlacements).filter(([, tile]) => tile.kind !== 'none'),
+  )
+}
 
 export function createInitialMarketResourcePlacements(): Record<string, MarketResourcePlacement> {
   const emptyMarketSpaceIds = new Set(['coal-market-2', 'iron-market-1', 'iron-market-2'])
@@ -1344,13 +1526,21 @@ export const linkSpaces: LinkSpace[] = [
   }
 ]
 
-export function createBoardState(): BoardState {
+export function createBoardState(
+  playerCount?: PlayerCount,
+  random = Math.random,
+): BoardState {
+  const merchantTilePlacements = playerCount
+    ? createInitialMerchantTilePlacements(playerCount, random)
+    : {}
+
   return {
     industryPlacements: {},
     industryResourcePlacements: {},
-    beerResourcePlacements: {},
+    beerResourcePlacements: createMerchantBeerPlacements(merchantTilePlacements),
     linkPlacements: {},
     marketResourcePlacements: createInitialMarketResourcePlacements(),
+    merchantTilePlacements,
   }
 }
 
@@ -1442,6 +1632,21 @@ export function updateBeerResourceSpaceCalibration(
   )
 }
 
+export function updateMerchantTileSpaceCalibration(
+  spaces: MerchantTileSpace[],
+  spaceId: string,
+  point: BoardPoint,
+): MerchantTileSpace[] {
+  return spaces.map((space) =>
+    space.id === spaceId
+      ? {
+          ...space,
+          ...point,
+        }
+      : space,
+  )
+}
+
 export function placeIndustryTile(
   state: BoardState,
   spaceId: string,
@@ -1458,6 +1663,77 @@ export function placeIndustryTile(
     industryPlacements: {
       ...state.industryPlacements,
       [spaceId]: tile,
+    },
+  }
+}
+
+export function removeIndustryTile(state: BoardState, spaceId: string): BoardState {
+  if (!state.industryPlacements[spaceId]) {
+    return state
+  }
+
+  const { [spaceId]: _removedTile, ...industryPlacements } = state.industryPlacements
+  const { [spaceId]: _removedResources, ...industryResourcePlacements } = state.industryResourcePlacements
+
+  return {
+    ...state,
+    industryPlacements,
+    industryResourcePlacements,
+  }
+}
+
+export function moveIndustryTile(
+  state: BoardState,
+  sourceSpaceId: string,
+  targetSpaceId: string,
+  tile: IndustryTilePlacement,
+): BoardState {
+  if (sourceSpaceId === targetSpaceId) {
+    return state
+  }
+
+  const nextState = placeIndustryTile(state, targetSpaceId, tile)
+
+  if (nextState === state) {
+    return state
+  }
+
+  const { [sourceSpaceId]: _removedTile, ...industryPlacements } = nextState.industryPlacements
+  const sourceResources = state.industryResourcePlacements[sourceSpaceId]
+  const { [sourceSpaceId]: _removedResources, ...industryResourcePlacements } =
+    nextState.industryResourcePlacements
+
+  return {
+    ...nextState,
+    industryPlacements,
+    industryResourcePlacements: sourceResources
+      ? {
+          ...industryResourcePlacements,
+          [targetSpaceId]: sourceResources.map((resource) => ({
+            ...resource,
+            spaceId: targetSpaceId,
+          })),
+        }
+      : industryResourcePlacements,
+  }
+}
+
+export function flipIndustryTile(state: BoardState, spaceId: string): BoardState {
+  const placement = state.industryPlacements[spaceId]
+  const resources = state.industryResourcePlacements[spaceId] ?? []
+
+  if (!placement || resources.length > 0) {
+    return state
+  }
+
+  return {
+    ...state,
+    industryPlacements: {
+      ...state.industryPlacements,
+      [spaceId]: {
+        ...placement,
+        flipped: !placement.flipped,
+      },
     },
   }
 }
@@ -1482,6 +1758,38 @@ export function placeLinkTile(
   }
 }
 
+export function removeLinkTile(state: BoardState, spaceId: string): BoardState {
+  if (!state.linkPlacements[spaceId]) {
+    return state
+  }
+
+  const { [spaceId]: _removed, ...linkPlacements } = state.linkPlacements
+
+  return {
+    ...state,
+    linkPlacements,
+  }
+}
+
+export function moveLinkTile(
+  state: BoardState,
+  sourceSpaceId: string,
+  targetSpaceId: string,
+  tile: LinkTilePlacement,
+): BoardState {
+  if (sourceSpaceId === targetSpaceId) {
+    return state
+  }
+
+  const nextState = placeLinkTile(state, targetSpaceId, tile)
+
+  if (nextState === state) {
+    return state
+  }
+
+  return removeLinkTile(nextState, sourceSpaceId)
+}
+
 export function placeIndustryResourceCube(
   state: BoardState,
   spaceId: string,
@@ -1491,7 +1799,12 @@ export function placeIndustryResourceCube(
   const rule = industryPlacement ? industryResourceRules[industryPlacement.industry] : undefined
   const currentResources = state.industryResourcePlacements[spaceId] ?? []
 
-  if (!rule || cube.kind !== rule.kind || currentResources.length >= rule.capacity) {
+  if (
+    !rule ||
+    industryPlacement.flipped ||
+    cube.kind !== rule.kind ||
+    currentResources.length >= rule.capacity
+  ) {
     return state
   }
 

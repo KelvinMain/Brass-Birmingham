@@ -1,0 +1,434 @@
+{
+  "back": "card-back.jpg",
+  "faceSheet": "card-face-sheet.jpg",
+  "grid": {
+    "columns": 7,
+    "rows": 5,
+    "cellSize": {
+      "width": 500,
+      "height": 702
+    }
+  },
+  "faces": [
+    {
+      "id": "card-face-01",
+      "file": "faces/card-face-01.jpg",
+      "row": 0,
+      "column": 0,
+      "box": [
+        0,
+        0,
+        500,
+        702
+      ]
+    },
+    {
+      "id": "card-face-02",
+      "file": "faces/card-face-02.jpg",
+      "row": 0,
+      "column": 1,
+      "box": [
+        500,
+        0,
+        1000,
+        702
+      ]
+    },
+    {
+      "id": "card-face-03",
+      "file": "faces/card-face-03.jpg",
+      "row": 0,
+      "column": 2,
+      "box": [
+        1000,
+        0,
+        1500,
+        702
+      ]
+    },
+    {
+      "id": "card-face-04",
+      "file": "faces/card-face-04.jpg",
+      "row": 0,
+      "column": 3,
+      "box": [
+        1500,
+        0,
+        2000,
+        702
+      ]
+    },
+    {
+      "id": "card-face-05",
+      "file": "faces/card-face-05.jpg",
+      "row": 0,
+      "column": 4,
+      "box": [
+        2000,
+        0,
+        2500,
+        702
+      ]
+    },
+    {
+      "id": "card-face-06",
+      "file": "faces/card-face-06.jpg",
+      "row": 0,
+      "column": 5,
+      "box": [
+        2500,
+        0,
+        3000,
+        702
+      ]
+    },
+    {
+      "id": "card-face-07",
+      "file": "faces/card-face-07.jpg",
+      "row": 0,
+      "column": 6,
+      "box": [
+        3000,
+        0,
+        3500,
+        702
+      ]
+    },
+    {
+      "id": "card-face-08",
+      "file": "faces/card-face-08.jpg",
+      "row": 1,
+      "column": 0,
+      "box": [
+        0,
+        702,
+        500,
+        1404
+      ]
+    },
+    {
+      "id": "card-face-09",
+      "file": "faces/card-face-09.jpg",
+      "row": 1,
+      "column": 1,
+      "box": [
+        500,
+        702,
+        1000,
+        1404
+      ]
+    },
+    {
+      "id": "card-face-10",
+      "file": "faces/card-face-10.jpg",
+      "row": 1,
+      "column": 2,
+      "box": [
+        1000,
+        702,
+        1500,
+        1404
+      ]
+    },
+    {
+      "id": "card-face-11",
+      "file": "faces/card-face-11.jpg",
+      "row": 1,
+      "column": 3,
+      "box": [
+        1500,
+        702,
+        2000,
+        1404
+      ]
+    },
+    {
+      "id": "card-face-12",
+      "file": "faces/card-face-12.jpg",
+      "row": 1,
+      "column": 4,
+      "box": [
+        2000,
+        702,
+        2500,
+        1404
+      ]
+    },
+    {
+      "id": "card-face-13",
+      "file": "faces/card-face-13.jpg",
+      "row": 1,
+      "column": 5,
+      "box": [
+        2500,
+        702,
+        3000,
+        1404
+      ]
+    },
+    {
+      "id": "card-face-14",
+      "file": "faces/card-face-14.jpg",
+      "row": 1,
+      "column": 6,
+      "box": [
+        3000,
+        702,
+        3500,
+        1404
+      ]
+    },
+    {
+      "id": "card-face-15",
+      "file": "faces/card-face-15.jpg",
+      "row": 2,
+      "column": 0,
+      "box": [
+        0,
+        1404,
+        500,
+        2106
+      ]
+    },
+    {
+      "id": "card-face-16",
+      "file": "faces/card-face-16.jpg",
+      "row": 2,
+      "column": 1,
+      "box": [
+        500,
+        1404,
+        1000,
+        2106
+      ]
+    },
+    {
+      "id": "card-face-17",
+      "file": "faces/card-face-17.jpg",
+      "row": 2,
+      "column": 2,
+      "box": [
+        1000,
+        1404,
+        1500,
+        2106
+      ]
+    },
+    {
+      "id": "card-face-18",
+      "file": "faces/card-face-18.jpg",
+      "row": 2,
+      "column": 3,
+      "box": [
+        1500,
+        1404,
+        2000,
+        2106
+      ]
+    },
+    {
+      "id": "card-face-19",
+      "file": "faces/card-face-19.jpg",
+      "row": 2,
+      "column": 4,
+      "box": [
+        2000,
+        1404,
+        2500,
+        2106
+      ]
+    },
+    {
+      "id": "card-face-20",
+      "file": "faces/card-face-20.jpg",
+      "row": 2,
+      "column": 5,
+      "box": [
+        2500,
+        1404,
+        3000,
+        2106
+      ]
+    },
+    {
+      "id": "card-face-21",
+      "file": "faces/card-face-21.jpg",
+      "row": 2,
+      "column": 6,
+      "box": [
+        3000,
+        1404,
+        3500,
+        2106
+      ]
+    },
+    {
+      "id": "card-face-22",
+      "file": "faces/card-face-22.jpg",
+      "row": 3,
+      "column": 0,
+      "box": [
+        0,
+        2106,
+        500,
+        2808
+      ]
+    },
+    {
+      "id": "card-face-23",
+      "file": "faces/card-face-23.jpg",
+      "row": 3,
+      "column": 1,
+      "box": [
+        500,
+        2106,
+        1000,
+        2808
+      ]
+    },
+    {
+      "id": "card-face-24",
+      "file": "faces/card-face-24.jpg",
+      "row": 3,
+      "column": 2,
+      "box": [
+        1000,
+        2106,
+        1500,
+        2808
+      ]
+    },
+    {
+      "id": "card-face-25",
+      "file": "faces/card-face-25.jpg",
+      "row": 3,
+      "column": 3,
+      "box": [
+        1500,
+        2106,
+        2000,
+        2808
+      ]
+    },
+    {
+      "id": "card-face-26",
+      "file": "faces/card-face-26.jpg",
+      "row": 3,
+      "column": 4,
+      "box": [
+        2000,
+        2106,
+        2500,
+        2808
+      ]
+    },
+    {
+      "id": "card-face-27",
+      "file": "faces/card-face-27.jpg",
+      "row": 3,
+      "column": 5,
+      "box": [
+        2500,
+        2106,
+        3000,
+        2808
+      ]
+    },
+    {
+      "id": "card-face-28",
+      "file": "faces/card-face-28.jpg",
+      "row": 3,
+      "column": 6,
+      "box": [
+        3000,
+        2106,
+        3500,
+        2808
+      ]
+    },
+    {
+      "id": "card-face-29",
+      "file": "faces/card-face-29.jpg",
+      "row": 4,
+      "column": 0,
+      "box": [
+        0,
+        2808,
+        500,
+        3510
+      ]
+    },
+    {
+      "id": "card-face-30",
+      "file": "faces/card-face-30.jpg",
+      "row": 4,
+      "column": 1,
+      "box": [
+        500,
+        2808,
+        1000,
+        3510
+      ]
+    },
+    {
+      "id": "card-face-31",
+      "file": "faces/card-face-31.jpg",
+      "row": 4,
+      "column": 2,
+      "box": [
+        1000,
+        2808,
+        1500,
+        3510
+      ]
+    },
+    {
+      "id": "card-face-32",
+      "file": "faces/card-face-32.jpg",
+      "row": 4,
+      "column": 3,
+      "box": [
+        1500,
+        2808,
+        2000,
+        3510
+      ]
+    },
+    {
+      "id": "card-face-33",
+      "file": "faces/card-face-33.jpg",
+      "row": 4,
+      "column": 4,
+      "box": [
+        2000,
+        2808,
+        2500,
+        3510
+      ]
+    },
+    {
+      "id": "card-face-34",
+      "file": "faces/card-face-34.jpg",
+      "row": 4,
+      "column": 5,
+      "box": [
+        2500,
+        2808,
+        3000,
+        3510
+      ]
+    },
+    {
+      "id": "card-face-35",
+      "file": "faces/card-face-35.jpg",
+      "row": 4,
+      "column": 6,
+      "box": [
+        3000,
+        2808,
+        3500,
+        3510
+      ]
+    }
+  ]
+}
