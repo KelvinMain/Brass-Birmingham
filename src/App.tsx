@@ -46,7 +46,8 @@ import {
   isPlayerBoardTileDevelopable,
   playerBoardIndustryTiles,
 } from './game/playerBoard'
-import type { PlayerBoardTileAssetColor } from './game/playerBoard'
+import { getPlayerBoardTileImageUrl, playerBoardImageUrl } from './playerBoardAssets'
+import { OpponentPlayerBoardsPanel } from './opponentPlayerBoards'
 import { createMultiplayerClient } from './multiplayer/client'
 import type { MultiplayerClient } from './multiplayer/client'
 import type { ServerMessage } from './multiplayer/protocol'
@@ -76,13 +77,13 @@ const playerColorStyles = {
     color: '#b9413d',
     text: '#fff7ec',
   },
-  blue: {
-    color: '#2f68b8',
+  purple: {
+    color: '#7b52a0',
     text: '#fff7ec',
   },
-  green: {
-    color: '#3f8b4b',
-    text: '#fff7ec',
+  yellow: {
+    color: '#d4a824',
+    text: '#17120d',
   },
 } satisfies Record<PlayerColor, { color: string; text: string }>
 
@@ -163,32 +164,6 @@ const scannedIndustryFaces: Partial<Record<Industry, ScannedCardFaceId>> = {
 const scannedCardFaceUrl = (faceId: ScannedCardFaceId) =>
   `url('${scannedCardFaceUrls[faceId]}')`
 
-const playerBoardImageUrl = new URL('./assets/player-board/player-board-reference.png', import.meta.url).href
-const playerBoardTileImageUrls = import.meta.glob('./assets/player-board/tiles/*/*.png', {
-  eager: true,
-  import: 'default',
-  query: '?url',
-}) as Record<string, string>
-const flippedPlayerBoardTileImageUrls = import.meta.glob(
-  './assets/player-board/tiles-flipped/*/*.png',
-  {
-    eager: true,
-    import: 'default',
-    query: '?url',
-  },
-) as Record<string, string>
-
-const getPlayerBoardTileImageUrl = (
-  assetColor: PlayerBoardTileAssetColor,
-  tileId: string,
-  flipped = false,
-) =>
-  flipped
-    ? flippedPlayerBoardTileImageUrls[
-        `./assets/player-board/tiles-flipped/${assetColor}/${tileId}.png`
-      ]
-    : playerBoardTileImageUrls[`./assets/player-board/tiles/${assetColor}/${tileId}.png`]
-
 const scannedLinkImageUrls = {
   purple: {
     canal: new URL('./assets/board/links/purple-ship.png', import.meta.url).href,
@@ -213,8 +188,8 @@ type ScannedLinkAssetColor = keyof typeof scannedLinkImageUrls
 const scannedLinkAssetColorByPlayerColor = {
   white: 'white',
   red: 'red',
-  blue: 'purple',
-  green: 'yellow',
+  purple: 'purple',
+  yellow: 'yellow',
 } satisfies Record<PlayerColor, ScannedLinkAssetColor>
 
 const getScannedLinkImageUrl = (
@@ -305,6 +280,31 @@ function HelpPanel() {
               <li>Player board stacks with tiles remaining</li>
               <li>Developed or outdated industry tiles in the sidebar</li>
               <li>Industry tiles on the main board with no resource cubes on them</li>
+            </ul>
+          </article>
+          <article className="help-panel__item">
+            <h3>Automation</h3>
+            <ul>
+              <li>
+                Victory points are not calculated at era end, and canal-era or outdated industries
+                are not removed automatically. Please track VP and perform era-end cleanup yourself.
+              </li>
+              <li>
+                When a round ends, the app adjusts each player&apos;s money according to their
+                income marker, crediting or deducting funds as required. Turn order for the next
+                round is set from the spending each player declared during the round just completed.
+              </li>
+            </ul>
+            </article>
+            <article className="help-panel__item">
+            <h3>Special rules (different from the normal ruleset) </h3>
+            <ul>
+              <li>
+                If a player goes negative due to turn end fund deduction, Industry sales for that player to repay the debt is not resolved immediately as it should, please resolve these situations manually at the table when that player's turn comes around.
+              </li>
+              <li>
+                The discard pile is shared between all players, and only the top few are visible.
+              </li>
             </ul>
           </article>
         </div>
@@ -2015,6 +2015,12 @@ function App() {
             )
           })}
         </div>
+        <OpponentPlayerBoardsPanel
+          getPlayerPieceStyle={getPlayerPieceStyle}
+          getRemainingTileCount={getRemainingPlayerBoardTileCount}
+          players={otherPlayers}
+          tiles={calibratedPlayerBoardIndustryTiles}
+        />
       </section>
 
       <section className="panel discard-panel" aria-label="Shared discard pile">

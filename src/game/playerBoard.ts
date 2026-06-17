@@ -17,8 +17,8 @@ export type PlayerBoardIndustryTile = {
 export const playerBoardColorByPlayerColor = {
   white: 'white',
   red: 'orange',
-  blue: 'purple',
-  green: 'yellow',
+  purple: 'purple',
+  yellow: 'yellow',
 } satisfies Record<PlayerColor, PlayerBoardTileAssetColor>
 
 export const getPlayerBoardAssetColor = (playerColor: PlayerColor): PlayerBoardTileAssetColor =>

@@ -4,7 +4,7 @@ import type { BoardState, IndustryTilePlacement } from './board'
 import { createDrawableStacks, getDeckForPlayerCount, HAND_LIMIT, shuffleDeck } from './deck'
 import type { DrawableStacks, GameCard } from './deck'
 
-export const playerColors = ['white', 'red', 'blue', 'green'] as const
+export const playerColors = ['white', 'red', 'purple', 'yellow'] as const
 const MIN_INCOME_TRACK = 0
 const MAX_INCOME_TRACK = 99
 const STARTING_INCOME_TRACK = 10
