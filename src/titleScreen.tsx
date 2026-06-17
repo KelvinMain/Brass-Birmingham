@@ -1,20 +1,26 @@
 import { useState } from 'react'
 
 import type { PlayerCount } from './game/cards'
+import { formatOfflineSaveAge } from './game/offlineSave'
+import type { OfflineSaveSummary } from './game/offlineSave'
 
 const playerCounts: PlayerCount[] = [2, 3, 4]
 
 type TitleMode = 'modes' | 'offline' | 'host' | 'join'
 
 type TitleScreenProps = {
+  offlineSaveSummary: OfflineSaveSummary | null
   onBackToModes: () => void
+  onContinueOfflineGame: () => void
   onHostOnlineGame: (playerCount: PlayerCount, hostName: string) => void
   onJoinOnlineGame: (roomCode: string, playerName: string) => void
   onStartOfflineGame: (playerCount: PlayerCount) => void
 }
 
 export function TitleScreen({
+  offlineSaveSummary,
   onBackToModes,
+  onContinueOfflineGame,
   onHostOnlineGame,
   onJoinOnlineGame,
   onStartOfflineGame,
@@ -38,6 +44,23 @@ export function TitleScreen({
         Choose offline hot-seat play, host a private online room, or join a friend's room.
       </p>
 
+      {mode === 'modes' && offlineSaveSummary ? (
+        <div className="title-continue-panel" aria-label="Saved offline game">
+          <p className="eyebrow">Saved offline game</p>
+          <p className="title-continue-summary">
+            {offlineSaveSummary.playerCount} players ·{' '}
+            {offlineSaveSummary.era === 'canal' ? 'Canal' : 'Rail'} era · Round{' '}
+            {offlineSaveSummary.roundNumber} · {offlineSaveSummary.activePlayerName}&apos;s turn ·
+            Saved {formatOfflineSaveAge(offlineSaveSummary.savedAt)}
+          </p>
+          <div className="title-actions">
+            <button onClick={onContinueOfflineGame} type="button">
+              Continue Saved Game
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {mode === 'modes' ? (
         <div className="title-actions title-actions--stacked" aria-label="Choose game mode">
           <button onClick={() => setMode('offline')} type="button">
@@ -56,6 +79,18 @@ export function TitleScreen({
         <div className="title-mode-panel">
           <p className="eyebrow">Offline hot-seat</p>
           <p>Control every player from this browser.</p>
+          {offlineSaveSummary ? (
+            <>
+              <p className="title-continue-note">
+                Starting a new offline game replaces your saved game.
+              </p>
+              <div className="title-actions">
+                <button onClick={onContinueOfflineGame} type="button">
+                  Continue Saved Game
+                </button>
+              </div>
+            </>
+          ) : null}
           <div className="title-actions" aria-label="Start offline player count">
             {playerCounts.map((count) => (
               <button key={count} onClick={() => onStartOfflineGame(count)} type="button">

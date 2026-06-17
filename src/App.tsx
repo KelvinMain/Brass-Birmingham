@@ -40,6 +40,13 @@ import {
 } from './game/game'
 import type { GameState, PlayerColor } from './game/game'
 import {
+  clearOfflineSave,
+  getOfflineSaveSummary,
+  loadOfflineSave,
+  writeOfflineSave,
+} from './game/offlineSave'
+import type { OfflineSaveSummary } from './game/offlineSave'
+import {
   getPlayerBoardTileCount,
   getPlayerBoardAssetColor,
   isPlayerBoardIndustryTileUsable,
@@ -387,6 +394,9 @@ function CardFace({ card }: { card: GameCard }) {
 function App() {
   const [game, setGame] = useState<GameState | null>(null)
   const [turnStartSnapshot, setTurnStartSnapshot] = useState<GameState | null>(null)
+  const [offlineSaveSummary, setOfflineSaveSummary] = useState<OfflineSaveSummary | null>(() =>
+    getOfflineSaveSummary(),
+  )
   const [onlineRoom, setOnlineRoom] = useState<RoomView | null>(null)
   const [onlineClientId, setOnlineClientId] = useState<string | null>(null)
   const [onlinePlayerId, setOnlinePlayerId] = useState<string | null>(null)
@@ -483,6 +493,21 @@ function App() {
     [],
   )
 
+  useEffect(() => {
+    if (onlineRoom || !game) {
+      return
+    }
+
+    if (game.status === 'playing') {
+      writeOfflineSave(game, turnStartSnapshot)
+      setOfflineSaveSummary(getOfflineSaveSummary())
+      return
+    }
+
+    clearOfflineSave()
+    setOfflineSaveSummary(null)
+  }, [game, onlineRoom, turnStartSnapshot])
+
   const applyOnlineRoomView = (view: RoomView) => {
     setOnlineRoom(view)
 
@@ -531,6 +556,22 @@ function App() {
     setTurnStartSnapshot(nextGame)
   }
 
+  const continueOfflineGame = () => {
+    const savedGame = loadOfflineSave()
+
+    if (!savedGame) {
+      setOfflineSaveSummary(null)
+      return
+    }
+
+    setOnlineRoom(null)
+    setOnlineClientId(null)
+    setOnlinePlayerId(null)
+    setOnlineError(null)
+    setGame(savedGame.game)
+    setTurnStartSnapshot(savedGame.turnStartSnapshot)
+  }
+
   const dispatchGameAction = (action: GameAction) => {
     if (onlineRoom) {
       getMultiplayerClient().sendAction(onlineRoom.roomCode, action)
@@ -575,6 +616,7 @@ function App() {
     setOnlinePlayerId(null)
     setOnlineError(null)
     setTurnStartSnapshot(null)
+    setOfflineSaveSummary(getOfflineSaveSummary())
   }
 
   const passActiveTurn = () => {
@@ -1253,7 +1295,9 @@ function App() {
     return (
       <main className="title-screen">
         <TitleScreen
+          offlineSaveSummary={offlineSaveSummary}
           onBackToModes={() => setOnlineError(null)}
+          onContinueOfflineGame={continueOfflineGame}
           onHostOnlineGame={hostOnlineGame}
           onJoinOnlineGame={joinOnlineGame}
           onStartOfflineGame={startGame}

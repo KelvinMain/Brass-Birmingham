@@ -7,7 +7,9 @@ describe('TitleScreen', () => {
   it('offers offline, host, and join choices without title-page tips', () => {
     const markup = renderToStaticMarkup(
       <TitleScreen
+        offlineSaveSummary={null}
         onBackToModes={() => undefined}
+        onContinueOfflineGame={() => undefined}
         onHostOnlineGame={() => undefined}
         onJoinOnlineGame={() => undefined}
         onStartOfflineGame={() => undefined}
