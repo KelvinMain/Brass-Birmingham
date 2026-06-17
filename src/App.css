@@ -292,6 +292,17 @@ button.is-active {
   margin: 0;
 }
 
+.help-panel__item a {
+  color: var(--brass-light);
+  font-weight: 600;
+  text-underline-offset: 2px;
+}
+
+.help-panel__item a:hover,
+.help-panel__item a:focus-visible {
+  color: var(--text-h);
+}
+
 .help-panel__item ul {
   margin: 10px 0 0;
   padding-left: 1.2rem;

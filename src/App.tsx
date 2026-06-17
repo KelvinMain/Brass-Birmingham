@@ -266,46 +266,69 @@ function HelpPanel() {
         </summary>
         <div className="help-panel__content">
           <article className="help-panel__item">
-            <h3>Magnify details</h3>
+            <h3>Magnify board elements</h3>
             <p>
-              Hold <kbd>Alt</kbd> and hover tiles, cards, link icons, board pieces, or open areas
-              on the player board and main game board. A larger preview appears in the
-              bottom-right corner. Release <kbd>Alt</kbd> to close it.
+              Hold <kbd>Left Alt</kbd> and hover over tiles, cards, link icons, board pieces, or
+              open areas on the player board and main map. A larger preview appears in the
+              bottom-right corner. Release <kbd>Left Alt</kbd> to close it.
             </p>
           </article>
           <article className="help-panel__item">
             <h3>Flip industry tiles</h3>
-            <p>Double-click an industry tile to flip it face down or face up.</p>
+            <p>
+              Double-click an industry tile to toggle it between face up and face down. This
+              applies to:
+            </p>
             <ul>
-              <li>Player board stacks with tiles remaining</li>
+              <li>Player board stacks that still have tiles remaining</li>
               <li>Developed or outdated industry tiles in the sidebar</li>
               <li>Industry tiles on the main board with no resource cubes on them</li>
             </ul>
           </article>
           <article className="help-panel__item">
-            <h3>Automation</h3>
+            <h3>What the app handles automatically</h3>
+            <ul>
+              <li>
+                At the end of each round, player money is adjusted according to each player&apos;s
+                income marker, crediting or deducting funds as required.
+              </li>
+              <li>
+                Turn order for the next round is set from the spending each player declared during
+                the round just completed.
+              </li>
+            </ul>
+          </article>
+          <article className="help-panel__item">
+            <h3>Manual steps required</h3>
             <ul>
               <li>
                 Victory points are not calculated at era end, and canal-era or outdated industries
-                are not removed automatically. Please track VP and perform era-end cleanup yourself.
+                are not removed automatically. Track VP and perform era-end cleanup at the table.
               </li>
               <li>
-                When a round ends, the app adjusts each player&apos;s money according to their
-                income marker, crediting or deducting funds as required. Turn order for the next
-                round is set from the spending each player declared during the round just completed.
+                If turn-end income would reduce a player below zero, industry sales to repay that
+                debt are not resolved in the app. Resolve these situations manually when that
+                player&apos;s turn arrives.
+              </li>
+              <li>
+                The discard pile is shared by all players. Only the most recently discarded cards
+                are shown.
               </li>
             </ul>
-            </article>
-            <article className="help-panel__item">
-            <h3>Special rules (different from the normal ruleset) </h3>
-            <ul>
-              <li>
-                If a player goes negative due to turn end fund deduction, Industry sales for that player to repay the debt is not resolved immediately as it should, please resolve these situations manually at the table when that player's turn comes around.
-              </li>
-              <li>
-                The discard pile is shared between all players, and only the top few are visible.
-              </li>
-            </ul>
+          </article>
+          <article className="help-panel__item">
+            <h3>Official rules</h3>
+            <p>
+              For the complete ruleset, refer to the publisher&apos;s{' '}
+              <a
+                href="https://files.roxley.com/Brass-Birmingham-Rulebook-2018.11.20-highlights.pdf"
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                Brass: Birmingham rulebook
+              </a>
+              .
+            </p>
           </article>
         </div>
       </details>
