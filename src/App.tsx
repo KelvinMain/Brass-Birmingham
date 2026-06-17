@@ -16,6 +16,7 @@ import {
   marketResourceSpaces,
   merchantTileSpaces,
   resourceCubeKinds,
+  turnMarkerSpaces,
 } from './game/board'
 import type {
   BeerResourceSpace,
@@ -221,6 +222,16 @@ const getScannedLinkImageUrl = (
   kind: LinkTilePlacement['kind'],
 ) => scannedLinkImageUrls[playerColor ? scannedLinkAssetColorByPlayerColor[playerColor] : 'white'][kind]
 
+const turnMarkerImageUrls = {
+  white: new URL('./assets/board/turn-marker/White.png', import.meta.url).href,
+  red: new URL('./assets/board/turn-marker/Red.png', import.meta.url).href,
+  purple: new URL('./assets/board/turn-marker/Purple.png', import.meta.url).href,
+  yellow: new URL('./assets/board/turn-marker/Yellow.png', import.meta.url).href,
+} satisfies Record<ScannedLinkAssetColor, string>
+
+const getTurnMarkerImageUrl = (playerColor: PlayerColor | undefined) =>
+  turnMarkerImageUrls[playerColor ? scannedLinkAssetColorByPlayerColor[playerColor] : 'white']
+
 type DragPayload =
   | {
       type: 'industry'
@@ -364,6 +375,7 @@ function App() {
   const calibratedIndustrySpaces = industrySpaces
   const calibratedLinkSpaces = linkSpaces
   const calibratedBoardControlSpaces = boardControlSpaces
+  const calibratedTurnMarkerSpaces = turnMarkerSpaces
   const [calibratedMarketResourceSpaces] = useState<MarketResourceSpace[]>(marketResourceSpaces)
   const [calibratedBeerResourceSpaces] = useState<BeerResourceSpace[]>(beerResourceSpaces)
   const calibratedMerchantTileSpaces = merchantTileSpaces
@@ -1549,25 +1561,49 @@ function App() {
                 </button>
               ))}
             </div>
-            <div className="turn-order-panel" aria-label="Turn order">
-              <div className="turn-order-list">
-                {game.players.map((player, index) => (
-                  <span
-                    aria-label={`${player.name} spent ${getTurnOrderSpendLabel(game, index) || 'nothing shown'} this round`}
-                    className={index === activePlayerIndex ? 'is-active' : ''}
-                    key={player.id}
-                    style={getPlayerPieceStyle(player.id)}
-                    title={`${player.name}: spent ${player.moneySpentThisRound} this round`}
-                  >
-                    {getTurnOrderSpendLabel(game, index)}
-                  </span>
-                ))}
-              </div>
-            </div>
           </aside>
 
           <div className="board-map" ref={boardMapRef}>
             <img src="/src/assets/board/board.jpg" alt="Brass Birmingham board" />
+
+            {calibratedTurnMarkerSpaces.map((space) => {
+              const playerIndex = space.turnIndex - 1
+              const player = game.players[playerIndex]
+
+              if (!player || playerIndex >= game.playerCount) {
+                return null
+              }
+
+              const spendLabel = getTurnOrderSpendLabel(game, playerIndex)
+
+              return (
+                <div
+                  aria-label={`Turn ${space.turnIndex}: ${player.name}${
+                    spendLabel ? `, spent ${spendLabel}` : ''
+                  }`}
+                  className={`board-turn-marker ${
+                    playerIndex === activePlayerIndex ? 'is-active' : ''
+                  }`}
+                  key={space.id}
+                  style={{
+                    left: `${space.x}%`,
+                    top: `${space.y}%`,
+                  }}
+                  title={`${player.name}: turn ${space.turnIndex}${
+                    spendLabel ? `, spent ${spendLabel}` : ''
+                  }`}
+                >
+                  <img
+                    alt=""
+                    className="board-turn-marker__image"
+                    src={getTurnMarkerImageUrl(player.color)}
+                  />
+                  {spendLabel ? (
+                    <strong className="board-turn-marker__spend">{spendLabel}</strong>
+                  ) : null}
+                </div>
+              )
+            })}
 
             {calibratedBoardControlSpaces.map((space) => {
               const stackCount = onlineRoom?.stackCounts[space.stack] ?? game.stacks[space.stack].length
