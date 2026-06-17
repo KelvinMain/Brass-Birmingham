@@ -52,6 +52,11 @@ export type BoardControlSpace = BoardPoint & {
   actionLabel: string
 }
 
+export type TurnMarkerSpace = BoardPoint & {
+  id: string
+  turnIndex: 1 | 2 | 3 | 4
+}
+
 export const resourceCubeKinds = ['coal', 'iron', 'beer'] as const
 
 export type ResourceCubeKind = (typeof resourceCubeKinds)[number]
@@ -147,6 +152,33 @@ export const boardControlSpaces: BoardControlSpace[] = [
     actionLabel: 'Take',
     x: 13.98,
     y: 43.17,
+  },
+]
+
+export const turnMarkerSpaces: TurnMarkerSpace[] = [
+  {
+    id: 'turn-marker-1',
+    turnIndex: 1,
+    x: 10.65,
+    y: 67.5,
+  },
+  {
+    id: 'turn-marker-2',
+    turnIndex: 2,
+    x: 10.65,
+    y: 75.5,
+  },
+  {
+    id: 'turn-marker-3',
+    turnIndex: 3,
+    x: 10.65,
+    y: 83.5,
+  },
+  {
+    id: 'turn-marker-4',
+    turnIndex: 4,
+    x: 10.65,
+    y: 91.5,
   },
 ]
 
@@ -2200,6 +2232,21 @@ export function updateBoardControlSpaceCalibration(
   spaceId: string,
   point: BoardPoint,
 ): BoardControlSpace[] {
+  return spaces.map((space) =>
+    space.id === spaceId
+      ? {
+          ...space,
+          ...point,
+        }
+      : space,
+  )
+}
+
+export function updateTurnMarkerSpaceCalibration(
+  spaces: TurnMarkerSpace[],
+  spaceId: string,
+  point: BoardPoint,
+): TurnMarkerSpace[] {
   return spaces.map((space) =>
     space.id === spaceId
       ? {

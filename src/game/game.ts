@@ -477,14 +477,20 @@ export function updatePlayerRoundSpending(
 
   return {
     ...game,
-    players: game.players.map((player) =>
-      player.id === playerId
-        ? {
-            ...player,
-            moneySpentThisRound: Math.max(0, player.moneySpentThisRound + delta),
-          }
-        : player,
-    ),
+    players: game.players.map((player) => {
+      if (player.id !== playerId) {
+        return player
+      }
+
+      const moneySpentThisRound = Math.max(0, player.moneySpentThisRound + delta)
+      const spendingDelta = moneySpentThisRound - player.moneySpentThisRound
+
+      return {
+        ...player,
+        moneySpentThisRound,
+        money: player.money - spendingDelta,
+      }
+    }),
   }
 }
 

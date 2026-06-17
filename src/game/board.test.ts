@@ -31,6 +31,7 @@ import {
   removeMarketResourceCube,
   removeBeerResourceCube,
   resourceCubeKinds,
+  turnMarkerSpaces,
   updateBeerResourceSpaceCalibration,
   updateBoardControlSpaceCalibration,
   updateIndustrySpaceCalibration,
@@ -38,6 +39,7 @@ import {
   updateLinkSpaceCalibration,
   updateMarketResourceSpaceCalibration,
   updateMerchantTileSpaceCalibration,
+  updateTurnMarkerSpaceCalibration,
 } from './board'
 
 const getSpaces = (spaceIds: string[]) =>
@@ -162,6 +164,7 @@ describe('Brass: Birmingham board placement', () => {
     expect(industrySpaces).toHaveLength(49)
     expect(linkSpaces).toHaveLength(39)
     expect(boardControlSpaces).toHaveLength(3)
+    expect(turnMarkerSpaces).toHaveLength(4)
     expect(marketResourceSpaces).toHaveLength(24)
     expect(beerResourceSpaces).toHaveLength(9)
     expect(merchantTileSpaces).toHaveLength(9)
@@ -185,6 +188,9 @@ describe('Brass: Birmingham board placement', () => {
     ])
     expect(boardControlSpaces.map((space) => space.x)).toEqual([13.98, 13.98, 13.98])
     expect(boardControlSpaces.map((space) => space.y)).toEqual([15.81, 29.61, 43.17])
+    expect(turnMarkerSpaces.map((space) => space.turnIndex)).toEqual([1, 2, 3, 4])
+    expect(turnMarkerSpaces.map((space) => space.x)).toEqual([6.25, 6.25, 6.25, 6.25])
+    expect(turnMarkerSpaces.map((space) => space.y)).toEqual([51.5, 57.5, 63.5, 69.5])
     expect(marketResourceSpaces.filter((space) => space.kind === 'coal')).toHaveLength(14)
     expect(marketResourceSpaces.filter((space) => space.kind === 'iron')).toHaveLength(10)
     expect(marketResourceSpaces.find((space) => space.id === 'coal-market-1')).toMatchObject({
@@ -964,6 +970,16 @@ describe('Brass: Birmingham board placement', () => {
       x: 12.25,
       y: 34.5,
       value: 42,
+    })
+    expect(
+      updateTurnMarkerSpaceCalibration(turnMarkerSpaces, 'turn-marker-2', {
+        x: 7.5,
+        y: 58.25,
+      }).find((space) => space.id === 'turn-marker-2'),
+    ).toMatchObject({
+      x: 7.5,
+      y: 58.25,
+      turnIndex: 2,
     })
   })
 

@@ -244,7 +244,7 @@ describe('Brass: Birmingham game setup', () => {
     })
   })
 
-  it('updates one player round spending without changing other players', () => {
+  it('updates one player round spending and adjusts money without changing other players', () => {
     const game = createGameState(2)
     const afterSpend = updatePlayerRoundSpending(game, 'player-1', 7)
     const afterRefund = updatePlayerRoundSpending(afterSpend, 'player-1', -2)
@@ -252,10 +252,12 @@ describe('Brass: Birmingham game setup', () => {
 
     expect(afterBelowZero.players[0]).toMatchObject({
       id: 'player-1',
+      money: 12,
       moneySpentThisRound: 5,
     })
     expect(afterBelowZero.players[1]).toMatchObject({
       id: 'player-2',
+      money: 17,
       moneySpentThisRound: 0,
     })
   })
