@@ -231,7 +231,11 @@ button.is-active {
   padding: 0;
 }
 
-.help-panel__details {
+.help-panel__details:not([open]) {
+  padding: 10px 18px;
+}
+
+.help-panel__details[open] {
   padding: 18px 24px 22px;
 }
 
@@ -266,7 +270,7 @@ button.is-active {
 .help-panel__title {
   color: var(--text-h);
   font-family: var(--heading);
-  font-size: 1.35rem;
+  font-size: 1.1rem;
 }
 
 .help-panel__content {
@@ -1280,6 +1284,10 @@ button.is-active {
   padding: 28px;
 }
 
+.panel.help-panel {
+  padding: 0;
+}
+
 .panel__header {
   border-bottom: 1px solid var(--rail);
   margin-bottom: 20px;
@@ -1288,6 +1296,103 @@ button.is-active {
 
 .hand-panel {
   margin-bottom: 16px;
+}
+
+.opponent-boards__details {
+  margin-top: 18px;
+  border-top: 1px solid rgba(229, 188, 126, 0.18);
+  padding-top: 16px;
+}
+
+.opponent-boards__summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: 14px;
+  list-style: none;
+}
+
+.opponent-boards__summary::-webkit-details-marker {
+  display: none;
+}
+
+.opponent-boards__summary::after {
+  color: var(--brass-light);
+  content: '+';
+  font-family: var(--mono);
+  font-size: 1.1rem;
+  margin-left: auto;
+}
+
+.opponent-boards__details[open] .opponent-boards__summary::after {
+  content: '−';
+}
+
+.opponent-boards__summary .eyebrow {
+  margin: 0;
+}
+
+.opponent-boards__title {
+  color: var(--text-h);
+  font-family: var(--heading);
+  font-size: 1.1rem;
+}
+
+.opponent-boards__content {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  margin-top: 16px;
+}
+
+.opponent-player-board {
+  border: 1px solid rgba(229, 188, 126, 0.22);
+  padding: 10px;
+  background: rgba(8, 9, 8, 0.24);
+}
+
+.opponent-player-board__header {
+  align-items: center;
+  border-left: 5px solid var(--owner-color, rgba(229, 188, 126, 0.45));
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  padding: 0 0 0 8px;
+}
+
+.opponent-player-board__header h3 {
+  color: var(--text-h);
+  font-family: var(--heading);
+  font-size: 1rem;
+  margin: 0;
+}
+
+.opponent-player-board__header p {
+  align-items: baseline;
+  color: var(--brass-light);
+  display: flex;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  gap: 8px;
+  letter-spacing: 0.06em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.opponent-player-board__header strong {
+  color: var(--text-h);
+  font-family: var(--heading);
+  font-size: 1rem;
+  letter-spacing: 0;
+}
+
+.opponent-player-board__surface {
+  max-width: 500px;
+}
+
+.player-board-tile--readonly {
+  pointer-events: none;
 }
 
 .hand-grid {

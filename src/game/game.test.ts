@@ -59,8 +59,8 @@ describe('Brass: Birmingham game setup', () => {
     expect(createGameState(4).players.map((player) => player.color)).toEqual([
       'white',
       'red',
-      'blue',
-      'green',
+      'purple',
+      'yellow',
     ])
     expect(createGameState(2).players.map((player) => player.color)).toEqual([
       'white',

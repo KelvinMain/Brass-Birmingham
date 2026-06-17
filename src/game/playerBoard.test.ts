@@ -15,8 +15,8 @@ describe('player board tile assets', () => {
     expect(playerBoardTileAssetColors).toEqual(['white', 'orange', 'purple', 'yellow'])
     expect(getPlayerBoardAssetColor('white')).toBe('white')
     expect(getPlayerBoardAssetColor('red')).toBe('orange')
-    expect(getPlayerBoardAssetColor('blue')).toBe('purple')
-    expect(getPlayerBoardAssetColor('green')).toBe('yellow')
+    expect(getPlayerBoardAssetColor('purple')).toBe('purple')
+    expect(getPlayerBoardAssetColor('yellow')).toBe('yellow')
   })
 
   it('defines the 29 buildable industry tiles in scanned sheet order', () => {
