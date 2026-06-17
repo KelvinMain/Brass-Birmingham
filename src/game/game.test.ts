@@ -6,14 +6,17 @@ import {
   developIndustryTile,
   discardCardFromPlayerHand,
   flipDevelopedIndustryTile,
+  flipOutdatedIndustryTile,
   getIncomeMoneyDelta,
   getRequiredEndTurnHandSize,
   getTurnOrderSpendLabel,
+  outdateIndustryTile,
   passTurn,
   flipPlayerBoardIndustryTile,
   restoreFlippedPlayerBoardIndustryTile,
   consumeFlippedPlayerBoardIndustryTile,
   removeDevelopedIndustryTile,
+  removeOutdatedIndustryTile,
   updatePlayerMoney,
   updatePlayerRoundSpending,
   updatePlayerScore,
@@ -138,12 +141,11 @@ describe('Brass: Birmingham game setup', () => {
     expect(createGameState(3).players.map((player) => player.money)).toEqual([17, 17, 17])
   })
 
-  it('starts every local player with no developed industry tiles', () => {
-    expect(createGameState(3).players.map((player) => player.developedIndustries)).toEqual([
-      [],
-      [],
-      [],
-    ])
+  it('starts with shared empty developed and outdated industry piles', () => {
+    const game = createGameState(3)
+
+    expect(game.developedIndustries).toEqual([])
+    expect(game.outdatedIndustries).toEqual([])
   })
 
   it('starts every local player with no flipped player board industry tiles', () => {
@@ -154,7 +156,7 @@ describe('Brass: Birmingham game setup', () => {
     ])
   })
 
-  it('adds and removes developed industry tiles for one player', () => {
+  it('adds and removes developed industry tiles in the shared pile', () => {
     const game = createGameState(2)
     const tile = {
       id: 'player-1-cotton-1-1',
@@ -163,33 +165,53 @@ describe('Brass: Birmingham game setup', () => {
       tileId: 'cotton-1',
     }
 
-    const developed = developIndustryTile(game, 'player-1', tile)
-    const removed = removeDevelopedIndustryTile(developed, 'player-1', tile.id)
+    const developed = developIndustryTile(game, tile)
+    const removed = removeDevelopedIndustryTile(developed, tile.id)
 
-    expect(developed.players[0].developedIndustries).toEqual([tile])
-    expect(developed.players[1].developedIndustries).toEqual([])
-    expect(removed.players[0].developedIndustries).toEqual([])
+    expect(developed.developedIndustries).toEqual([tile])
+    expect(removed.developedIndustries).toEqual([])
   })
 
-  it('flips a developed or outdated industry tile for one player', () => {
+  it('adds and removes outdated industry tiles in the shared pile', () => {
     const game = createGameState(2)
     const tile = {
+      id: 'player-2-pottery-1-1',
+      industry: 'pottery' as const,
+      ownerId: 'player-2',
+      tileId: 'pottery-1',
+    }
+
+    const outdated = outdateIndustryTile(game, tile)
+    const removed = removeOutdatedIndustryTile(outdated, tile.id)
+
+    expect(outdated.outdatedIndustries).toEqual([tile])
+    expect(removed.outdatedIndustries).toEqual([])
+  })
+
+  it('flips developed and outdated industry tiles in the shared piles', () => {
+    const game = createGameState(2)
+    const developedTile = {
       id: 'player-1-cotton-1-1',
       industry: 'cotton' as const,
       ownerId: 'player-1',
       tileId: 'cotton-1',
     }
-    const developed = developIndustryTile(game, 'player-1', tile)
-    const flipped = flipDevelopedIndustryTile(developed, 'player-1', tile.id)
-    const unflipped = flipDevelopedIndustryTile(flipped, 'player-1', tile.id)
+    const outdatedTile = {
+      id: 'player-2-pottery-1-1',
+      industry: 'pottery' as const,
+      ownerId: 'player-2',
+      tileId: 'pottery-1',
+    }
+    const withTiles = outdateIndustryTile(developIndustryTile(game, developedTile), outdatedTile)
+    const flippedDeveloped = flipDevelopedIndustryTile(withTiles, developedTile.id)
+    const flippedOutdated = flipOutdatedIndustryTile(flippedDeveloped, outdatedTile.id)
 
-    expect(flipped.players[0].developedIndustries[0]).toMatchObject({
+    expect(flippedDeveloped.developedIndustries[0]).toMatchObject({
       flipped: true,
     })
-    expect(unflipped.players[0].developedIndustries[0]).toMatchObject({
-      flipped: false,
+    expect(flippedOutdated.outdatedIndustries[0]).toMatchObject({
+      flipped: true,
     })
-    expect(flipped.players[1].developedIndustries).toEqual([])
   })
 
   it('flips the top remaining player board tile for one player', () => {

@@ -33,12 +33,15 @@ import {
 import type { DrawableStacks, GameCard } from './game/deck'
 import { applyGameAction } from './game/actions'
 import type { GameAction } from './game/actions'
+import { runSimpleAiTurn } from './game/ai'
 import {
   createGameState,
   getRequiredEndTurnHandSize,
   getTurnOrderSpendLabel,
 } from './game/game'
 import type { GameState, PlayerColor } from './game/game'
+import type { LocalGameMode } from './game/gameMode'
+import { HUMAN_PLAYER_INDEX, isAiPlayerIndex } from './game/gameMode'
 import {
   clearOfflineSave,
   getOfflineSaveSummary,
@@ -214,11 +217,13 @@ const turnMarkerImageUrls = {
 const getTurnMarkerImageUrl = (playerColor: PlayerColor | undefined) =>
   turnMarkerImageUrls[playerColor ? scannedLinkAssetColorByPlayerColor[playerColor] : 'white']
 
+type IndustrySidebarArea = 'developed' | 'outdated'
+
 type DragPayload =
   | {
       type: 'industry'
       tile: IndustryTilePlacement
-      sourceDevelopedPlayerId?: string
+      sourceSidebarArea?: IndustrySidebarArea
       sourcePlayerBoardPlayerId?: string
       sourcePlayerBoardTileId?: string
       sourceSpaceId?: string
@@ -249,6 +254,19 @@ type ResourceCubeDragPayload = Omit<MarketResourcePlacement, 'spaceId'> & {
 
 function createShuffledGameState(playerCount: PlayerCount): GameState {
   return createGameState(playerCount, shuffleDeck(getDeckForPlayerCount(playerCount)))
+}
+
+function createVsAiGameState(playerCount: PlayerCount): GameState {
+  const game = createShuffledGameState(playerCount)
+
+  return {
+    ...game,
+    players: game.players.map((player, index) =>
+      index === HUMAN_PLAYER_INDEX
+        ? { ...player, name: 'You' }
+        : { ...player, name: `AI ${index + 1}` },
+    ),
+  }
 }
 
 function formatDiscardCard(card: GameCard): string {
@@ -288,7 +306,8 @@ function HelpPanel() {
             </p>
             <ul>
               <li>Player board stacks that still have tiles remaining</li>
-              <li>Developed or outdated industry tiles in the sidebar</li>
+              <li>Developed industry tiles in the sidebar</li>
+              <li>Outdated industry tiles in the sidebar</li>
               <li>Industry tiles on the main board with no resource cubes on them</li>
             </ul>
           </article>
@@ -393,7 +412,10 @@ function CardFace({ card }: { card: GameCard }) {
 
 function App() {
   const [game, setGame] = useState<GameState | null>(null)
+  const [gameMode, setGameMode] = useState<LocalGameMode | null>(null)
   const [turnStartSnapshot, setTurnStartSnapshot] = useState<GameState | null>(null)
+  const [isAiThinking, setIsAiThinking] = useState(false)
+  const aiTurnKeyRef = useRef<string | null>(null)
   const [offlineSaveSummary, setOfflineSaveSummary] = useState<OfflineSaveSummary | null>(() =>
     getOfflineSaveSummary(),
   )
@@ -416,7 +438,11 @@ function App() {
   const calibratedPlayerBoardIndustryTiles = playerBoardIndustryTiles
 
   const activePlayerIndex = game?.activePlayerIndex ?? 0
-  const { turnPlayer, viewedPlayer, viewedPlayerIndex } = selectPlayerView(game, onlinePlayerId)
+  const { turnPlayer, viewedPlayer, viewedPlayerIndex } = selectPlayerView(
+    game,
+    onlinePlayerId,
+    gameMode,
+  )
   const activePlayer = viewedPlayer
   const otherPlayers = game?.players.filter((_, index) => index !== viewedPlayerIndex) ?? []
   const isGameEnded = game?.status === 'ended'
@@ -425,8 +451,13 @@ function App() {
   const activeEraLinkImageUrl = getScannedLinkImageUrl(activePlayer?.color, activeEraLinkKind)
   const requiredEndTurnHandSize = game ? getRequiredEndTurnHandSize(game) : HAND_LIMIT
   const isOnlineGame = Boolean(onlineRoom)
+  const isVsAiGame = gameMode === 'vsAi' && !isOnlineGame
+  const isHumanTurn = !isVsAiGame || activePlayerIndex === HUMAN_PLAYER_INDEX
   const canUseActivePlayerControls =
-    Boolean(activePlayer) && !isGameEnded && (!isOnlineGame || turnPlayer?.id === onlinePlayerId)
+    Boolean(activePlayer) &&
+    !isGameEnded &&
+    isHumanTurn &&
+    (!isOnlineGame || turnPlayer?.id === onlinePlayerId)
   const canPassTurn =
     canUseActivePlayerControls &&
     Boolean(game && activePlayer && game.status === 'playing') &&
@@ -449,9 +480,12 @@ function App() {
       ? Object.values(game.board.industryPlacements).filter(
           (placement) => placement.ownerId === playerId && placement.tileId === tileId,
         ).length +
-        (game.players
-          .find((player) => player.id === playerId)
-          ?.developedIndustries.filter((tile) => tile.tileId === tileId).length ?? 0)
+        game.developedIndustries.filter(
+          (tile) => tile.ownerId === playerId && tile.tileId === tileId,
+        ).length +
+        game.outdatedIndustries.filter(
+          (tile) => tile.ownerId === playerId && tile.tileId === tileId,
+        ).length
       : 0
   const getRemainingPlayerBoardTileCount = (playerId: string | undefined, tileId: string) =>
     Math.max(0, getPlayerBoardTileCount(tileId) - getPlacedPlayerBoardTileCount(playerId, tileId))
@@ -499,14 +533,69 @@ function App() {
     }
 
     if (game.status === 'playing') {
-      writeOfflineSave(game, turnStartSnapshot)
+      writeOfflineSave(game, turnStartSnapshot, localStorage, gameMode ?? 'hotseat')
       setOfflineSaveSummary(getOfflineSaveSummary())
       return
     }
 
     clearOfflineSave()
     setOfflineSaveSummary(null)
-  }, [game, onlineRoom, turnStartSnapshot])
+  }, [game, gameMode, onlineRoom, turnStartSnapshot])
+
+  useEffect(() => {
+    if (!game || !isVsAiGame || game.status !== 'playing') {
+      aiTurnKeyRef.current = null
+      setIsAiThinking(false)
+      return
+    }
+
+    if (!isAiPlayerIndex(game.activePlayerIndex, gameMode)) {
+      aiTurnKeyRef.current = null
+      setIsAiThinking(false)
+      return
+    }
+
+    const turnKey = `${game.roundNumber}-${game.turnsTakenThisRound}-${game.activePlayerIndex}`
+
+    if (aiTurnKeyRef.current === turnKey) {
+      return
+    }
+
+    aiTurnKeyRef.current = turnKey
+    setIsAiThinking(true)
+
+    const timeoutId = window.setTimeout(() => {
+      setGame((currentGame) => {
+        if (
+          !currentGame ||
+          currentGame.status !== 'playing' ||
+          !isAiPlayerIndex(currentGame.activePlayerIndex, gameMode)
+        ) {
+          return currentGame
+        }
+
+        const nextGame = runSimpleAiTurn(currentGame)
+
+        if (nextGame !== currentGame) {
+          setTurnStartSnapshot(nextGame.status === 'playing' ? nextGame : null)
+        }
+
+        return nextGame
+      })
+      setIsAiThinking(false)
+    }, 400)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [
+    game?.activePlayerIndex,
+    game?.roundNumber,
+    game?.status,
+    game?.turnsTakenThisRound,
+    gameMode,
+    isVsAiGame,
+  ])
 
   const applyOnlineRoomView = (view: RoomView) => {
     setOnlineRoom(view)
@@ -552,6 +641,18 @@ function App() {
     setOnlineClientId(null)
     setOnlinePlayerId(null)
     setOnlineError(null)
+    setGameMode('hotseat')
+    setGame(nextGame)
+    setTurnStartSnapshot(nextGame)
+  }
+
+  const startVsAiGame = (nextPlayerCount: PlayerCount) => {
+    const nextGame = createVsAiGameState(nextPlayerCount)
+    setOnlineRoom(null)
+    setOnlineClientId(null)
+    setOnlinePlayerId(null)
+    setOnlineError(null)
+    setGameMode('vsAi')
     setGame(nextGame)
     setTurnStartSnapshot(nextGame)
   }
@@ -569,6 +670,7 @@ function App() {
     setOnlinePlayerId(null)
     setOnlineError(null)
     setGame(savedGame.game)
+    setGameMode(savedGame.gameMode ?? 'hotseat')
     setTurnStartSnapshot(savedGame.turnStartSnapshot)
   }
 
@@ -583,6 +685,7 @@ function App() {
 
   const hostOnlineGame = (nextPlayerCount: PlayerCount, hostName: string) => {
     setGame(null)
+    setGameMode(null)
     setTurnStartSnapshot(null)
     setOnlineError(null)
     getMultiplayerClient().createRoom({
@@ -593,6 +696,7 @@ function App() {
 
   const joinOnlineGame = (roomCode: string, playerName: string) => {
     setGame(null)
+    setGameMode(null)
     setTurnStartSnapshot(null)
     setOnlineError(null)
     getMultiplayerClient().joinRoom({
@@ -611,11 +715,13 @@ function App() {
 
   const returnToTitle = () => {
     setGame(null)
+    setGameMode(null)
     setOnlineRoom(null)
     setOnlineClientId(null)
     setOnlinePlayerId(null)
     setOnlineError(null)
     setTurnStartSnapshot(null)
+    setIsAiThinking(false)
     setOfflineSaveSummary(getOfflineSaveSummary())
   }
 
@@ -821,7 +927,7 @@ function App() {
               playerId: activePlayer.id,
               spaceId,
               tile: payload.tile,
-              sourceDevelopedPlayerId: payload.sourceDevelopedPlayerId,
+              sourceSidebarArea: payload.sourceSidebarArea,
               sourcePlayerBoardPlayerId: payload.sourcePlayerBoardPlayerId,
               sourcePlayerBoardTileId: payload.sourcePlayerBoardTileId,
             },
@@ -1027,7 +1133,7 @@ function App() {
       !game ||
       !activePlayer ||
       payload.type !== 'industry' ||
-      payload.sourceDevelopedPlayerId ||
+      payload.sourceSidebarArea ||
       !payload.tile.tileId ||
       !isPlayerBoardTileDevelopable(payload.tile.tileId)
     ) {
@@ -1036,6 +1142,30 @@ function App() {
 
     dispatchGameAction({
       type: 'develop-industry-tile',
+      playerId: activePlayer.id,
+      tile: payload.tile,
+      sourceSpaceId: payload.sourceSpaceId,
+      sourcePlayerBoardPlayerId: payload.sourcePlayerBoardPlayerId,
+      sourcePlayerBoardTileId: payload.sourcePlayerBoardTileId,
+    })
+  }
+
+  const dropOnOutdatedIndustries = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    const payload = JSON.parse(event.dataTransfer.getData('application/json')) as DragPayload
+
+    if (
+      !game ||
+      !activePlayer ||
+      payload.type !== 'industry' ||
+      payload.sourceSidebarArea ||
+      !payload.tile.tileId
+    ) {
+      return
+    }
+
+    dispatchGameAction({
+      type: 'outdate-industry-tile',
       playerId: activePlayer.id,
       tile: payload.tile,
       sourceSpaceId: payload.sourceSpaceId,
@@ -1053,7 +1183,8 @@ function App() {
       !activePlayer ||
       payload.type !== 'industry' ||
       !payload.tile.tileId ||
-      (!payload.sourceDevelopedPlayerId && !payload.sourceSpaceId)
+      (payload.sourceSpaceId && payload.tile.ownerId !== activePlayer.id) ||
+      (!payload.sourceSidebarArea && !payload.sourceSpaceId)
     ) {
       return
     }
@@ -1062,7 +1193,7 @@ function App() {
       type: 'return-industry-tile-to-player-board',
       playerId: activePlayer.id,
       tile: payload.tile,
-      sourceDevelopedPlayerId: payload.sourceDevelopedPlayerId,
+      sourceSidebarArea: payload.sourceSidebarArea,
       sourceSpaceId: payload.sourceSpaceId,
     })
   }
@@ -1156,7 +1287,13 @@ function App() {
   ) => {
     const boardRect = boardMapRef.current?.getBoundingClientRect()
 
-    if (!boardRect) {
+    if (!boardRect || !game || !activePlayer) {
+      return
+    }
+
+    const placement = game.board.industryPlacements[sourceSpaceId]
+
+    if (!placement || placement.ownerId !== activePlayer.id) {
       return
     }
 
@@ -1167,10 +1304,6 @@ function App() {
       event.clientY > boardRect.bottom
 
     if (wasDroppedOutsideBoard) {
-      if (!activePlayer) {
-        return
-      }
-
       dispatchGameAction({
         type: 'remove-industry-tile',
         playerId: activePlayer.id,
@@ -1225,13 +1358,25 @@ function App() {
     })
   }
 
-  const flipActivePlayerDevelopedTile = (tileId: string) => {
+  const flipDevelopedSidebarTile = (tileId: string) => {
     if (!activePlayer) {
       return
     }
 
     dispatchGameAction({
       type: 'flip-developed-industry-tile',
+      playerId: activePlayer.id,
+      tileId,
+    })
+  }
+
+  const flipOutdatedSidebarTile = (tileId: string) => {
+    if (!activePlayer) {
+      return
+    }
+
+    dispatchGameAction({
+      type: 'flip-outdated-industry-tile',
       playerId: activePlayer.id,
       tileId,
     })
@@ -1301,6 +1446,7 @@ function App() {
           onHostOnlineGame={hostOnlineGame}
           onJoinOnlineGame={joinOnlineGame}
           onStartOfflineGame={startGame}
+          onStartVsAiGame={startVsAiGame}
         />
         {onlineError ? <p className="online-status online-status--error">{onlineError}</p> : null}
         <AltMagnifierOverlay {...magnifier} />
@@ -1312,12 +1458,30 @@ function App() {
     <main className="app-shell">
       <section className="controls-panel" aria-label="Locked game setup">
         <div>
-          <p className="eyebrow">{onlineRoom ? `Online room ${onlineRoom.roomCode}` : 'Game setup locked'}</p>
-          <h2>{game.playerCount} {onlineRoom ? 'online players' : 'local players'}</h2>
+          <p className="eyebrow">
+            {onlineRoom
+              ? `Online room ${onlineRoom.roomCode}`
+              : isVsAiGame
+                ? 'Solo vs AI'
+                : 'Game setup locked'}
+          </p>
+          <h2>
+            {game.playerCount}{' '}
+            {onlineRoom ? 'online players' : isVsAiGame ? 'players (you vs AI)' : 'local players'}
+          </h2>
           {onlineRoom ? (
             <p className="online-turn-note">
               You are {activePlayer?.name ?? 'a player'}. Turn: {turnPlayer?.name ?? 'unknown'}.
               {canUseActivePlayerControls ? ' It is your turn.' : ' Waiting for their move.'}
+            </p>
+          ) : isVsAiGame ? (
+            <p className="online-turn-note">
+              Turn: {turnPlayer?.name ?? 'unknown'}.
+              {isAiThinking
+                ? ' AI is playing...'
+                : isHumanTurn
+                  ? ' It is your turn.'
+                  : ' Waiting for AI.'}
             </p>
           ) : null}
         </div>
@@ -1326,8 +1490,8 @@ function App() {
             <button
               className={`${index === activePlayerIndex ? 'is-active' : ''} ${
                 onlineRoom && player.id === onlinePlayerId ? 'is-viewed-player' : ''
-              }`}
-              disabled={index !== activePlayerIndex || isGameEnded}
+              } ${isVsAiGame && index === HUMAN_PLAYER_INDEX ? 'is-viewed-player' : ''}`}
+              disabled={index !== activePlayerIndex || isGameEnded || isVsAiGame}
               key={player.id}
               style={getPlayerPieceStyle(player.id)}
               type="button"
@@ -1573,32 +1737,74 @@ function App() {
               onDragOver={(event) => event.preventDefault()}
               onDrop={dropOnDevelopedIndustries}
             >
-              <h3>Developed industries / Outdated industries</h3>
+              <h3>Developed industries</h3>
               <div className="developed-industries-grid">
-                {activePlayer?.developedIndustries.map((tile) => {
+                {game.developedIndustries.map((tile) => {
                   const imageUrl = getIndustryPlacementImageUrl(tile)
+                  const owner = game.players.find((player) => player.id === tile.ownerId)
 
                   return (
                     <button
-                      aria-label={`Move developed or outdated ${tile.industry}`}
+                      aria-label={`Move developed ${tile.industry}${owner ? ` for ${owner.name}` : ''}`}
                       className={`developed-industry-tile ${tile.flipped ? 'is-flipped' : ''}`}
                       draggable={canUseActivePlayerControls}
                       key={tile.id}
                       onDoubleClick={(event) => {
                         event.stopPropagation()
-                        flipActivePlayerDevelopedTile(tile.id)
+                        flipDevelopedSidebarTile(tile.id)
                       }}
                       onDragStart={(event) =>
                         dragPiece(event, {
                           type: 'industry',
                           tile,
-                          sourceDevelopedPlayerId: activePlayer.id,
+                          sourceSidebarArea: 'developed',
                         })
                       }
                       style={{
                         backgroundImage: imageUrl ? `url('${imageUrl}')` : undefined,
+                        ...getPlayerPieceStyle(tile.ownerId),
                       }}
-                      title={`Developed or outdated ${tile.industry}, double-click to flip`}
+                      title={`Developed ${tile.industry}${owner ? ` (${owner.name})` : ''}, double-click to flip`}
+                      type="button"
+                    />
+                  )
+                })}
+              </div>
+            </div>
+
+            <div
+              className="outdated-industries"
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={dropOnOutdatedIndustries}
+            >
+              <h3>Outdated industries</h3>
+              <div className="developed-industries-grid">
+                {game.outdatedIndustries.map((tile) => {
+                  const imageUrl = getIndustryPlacementImageUrl(tile)
+                  const owner = game.players.find((player) => player.id === tile.ownerId)
+
+                  return (
+                    <button
+                      aria-label={`Move outdated ${tile.industry}${owner ? ` for ${owner.name}` : ''}`}
+                      className={`developed-industry-tile ${tile.flipped ? 'is-flipped' : ''}`}
+                      draggable={canUseActivePlayerControls}
+                      key={tile.id}
+                      onDoubleClick={(event) => {
+                        event.stopPropagation()
+                        flipOutdatedSidebarTile(tile.id)
+                      }}
+                      onDragStart={(event) =>
+                        dragPiece(event, {
+                          type: 'industry',
+                          tile,
+                          sourceSidebarArea: 'outdated',
+                        })
+                      }
+                      style={{
+                        backgroundImage: imageUrl ? `url('${imageUrl}')` : undefined,
+                        ...getPlayerPieceStyle(tile.ownerId),
+                      }}
+                      title={`Outdated ${tile.industry}${owner ? ` (${owner.name})` : ''}, double-click to flip`}
                       type="button"
                     />
                   )

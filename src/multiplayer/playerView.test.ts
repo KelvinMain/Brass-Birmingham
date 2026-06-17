@@ -29,4 +29,17 @@ describe('selectPlayerView', () => {
     expect(view.viewedPlayer?.id).toBe('player-2')
     expect(view.viewedPlayerIndex).toBe(1)
   })
+
+  it('keeps the human seat in view during vs AI play', () => {
+    const game = {
+      ...createGameState(2),
+      activePlayerIndex: 1,
+    }
+
+    const view = selectPlayerView(game, null, 'vsAi')
+
+    expect(view.turnPlayer?.id).toBe('player-2')
+    expect(view.viewedPlayer?.id).toBe('player-1')
+    expect(view.viewedPlayerIndex).toBe(0)
+  })
 })

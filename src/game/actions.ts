@@ -21,9 +21,12 @@ import {
   developIndustryTile,
   discardCardFromPlayerHand,
   flipDevelopedIndustryTile,
+  flipOutdatedIndustryTile,
   flipPlayerBoardIndustryTile,
+  outdateIndustryTile,
   passTurn,
   removeDevelopedIndustryTile,
+  removeOutdatedIndustryTile,
   restoreFlippedPlayerBoardIndustryTile,
   updatePlayerMoney,
   updatePlayerRoundSpending,
@@ -38,6 +41,8 @@ type ResourceSource = {
   industrySpaceId?: string
   marketSpaceId?: string
 }
+
+type IndustrySidebarArea = 'developed' | 'outdated'
 
 export type GameAction =
   | { type: 'pass-turn'; playerId: string }
@@ -57,7 +62,7 @@ export type GameAction =
       playerId: string
       spaceId: string
       tile: IndustryTilePlacement
-      sourceDevelopedPlayerId?: string
+      sourceSidebarArea?: IndustrySidebarArea
       sourcePlayerBoardPlayerId?: string
       sourcePlayerBoardTileId?: string
     }
@@ -112,14 +117,23 @@ export type GameAction =
       sourcePlayerBoardTileId?: string
     }
   | {
+      type: 'outdate-industry-tile'
+      playerId: string
+      tile: IndustryTilePlacement
+      sourceSpaceId?: string
+      sourcePlayerBoardPlayerId?: string
+      sourcePlayerBoardTileId?: string
+    }
+  | {
       type: 'return-industry-tile-to-player-board'
       playerId: string
       tile: IndustryTilePlacement
-      sourceDevelopedPlayerId?: string
+      sourceSidebarArea?: IndustrySidebarArea
       sourceSpaceId?: string
     }
   | { type: 'remove-developed-industry-tile'; playerId: string; tileId: string }
   | { type: 'flip-developed-industry-tile'; playerId: string; tileId: string }
+  | { type: 'flip-outdated-industry-tile'; playerId: string; tileId: string }
   | { type: 'flip-player-board-industry-tile'; playerId: string; tileId: string }
   | { type: 'consume-flipped-player-board-industry-tile'; playerId: string; tileId: string }
   | { type: 'restore-flipped-player-board-industry-tile'; playerId: string; tileId: string }
@@ -164,6 +178,22 @@ function removeResourceSource(
       ...game,
       board: removeIndustryResourceCube(game.board, source.industrySpaceId, cubeId),
     }
+  }
+
+  return game
+}
+
+function removeSidebarIndustrySource(
+  game: GameState,
+  sourceSidebarArea: IndustrySidebarArea | undefined,
+  tileId: string,
+): GameState {
+  if (sourceSidebarArea === 'developed') {
+    return removeDevelopedIndustryTile(game, tileId)
+  }
+
+  if (sourceSidebarArea === 'outdated') {
+    return removeOutdatedIndustryTile(game, tileId)
   }
 
   return game
@@ -255,8 +285,8 @@ export function applyGameAction(game: GameState, action: GameAction): GameState 
         board: placeIndustryTile(game.board, action.spaceId, action.tile),
       }
       const withoutDevelopedSource =
-        withBoard.board !== game.board && action.sourceDevelopedPlayerId
-          ? removeDevelopedIndustryTile(withBoard, action.sourceDevelopedPlayerId, action.tile.id)
+        withBoard.board !== game.board && action.sourceSidebarArea
+          ? removeSidebarIndustrySource(withBoard, action.sourceSidebarArea, action.tile.id)
           : withBoard
 
       return consumePlayerBoardFlippedSource(
@@ -332,7 +362,7 @@ export function applyGameAction(game: GameState, action: GameAction): GameState 
             board: removeIndustryTile(game.board, action.sourceSpaceId),
           }
         : game
-      const withDevelopedTile = developIndustryTile(withRemovedSource, action.playerId, action.tile)
+      const withDevelopedTile = developIndustryTile(withRemovedSource, action.tile)
 
       return consumePlayerBoardFlippedSource(
         withDevelopedTile,
@@ -341,9 +371,25 @@ export function applyGameAction(game: GameState, action: GameAction): GameState 
         action.sourcePlayerBoardTileId,
       )
     }
+    case 'outdate-industry-tile': {
+      const withRemovedSource = action.sourceSpaceId
+        ? {
+            ...game,
+            board: removeIndustryTile(game.board, action.sourceSpaceId),
+          }
+        : game
+      const withOutdatedTile = outdateIndustryTile(withRemovedSource, action.tile)
+
+      return consumePlayerBoardFlippedSource(
+        withOutdatedTile,
+        action.tile,
+        action.sourcePlayerBoardPlayerId,
+        action.sourcePlayerBoardTileId,
+      )
+    }
     case 'return-industry-tile-to-player-board': {
-      const withRemovedSource = action.sourceDevelopedPlayerId
-        ? removeDevelopedIndustryTile(game, action.sourceDevelopedPlayerId, action.tile.id)
+      const withRemovedSource = action.sourceSidebarArea
+        ? removeSidebarIndustrySource(game, action.sourceSidebarArea, action.tile.id)
         : action.sourceSpaceId
           ? {
               ...game,
@@ -356,9 +402,11 @@ export function applyGameAction(game: GameState, action: GameAction): GameState 
         : withRemovedSource
     }
     case 'remove-developed-industry-tile':
-      return removeDevelopedIndustryTile(game, action.playerId, action.tileId)
+      return removeDevelopedIndustryTile(game, action.tileId)
     case 'flip-developed-industry-tile':
-      return flipDevelopedIndustryTile(game, action.playerId, action.tileId)
+      return flipDevelopedIndustryTile(game, action.tileId)
+    case 'flip-outdated-industry-tile':
+      return flipOutdatedIndustryTile(game, action.tileId)
     case 'flip-player-board-industry-tile':
       return flipPlayerBoardIndustryTile(game, action.playerId, action.tileId)
     case 'consume-flipped-player-board-industry-tile':

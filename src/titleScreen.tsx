@@ -6,7 +6,7 @@ import type { OfflineSaveSummary } from './game/offlineSave'
 
 const playerCounts: PlayerCount[] = [2, 3, 4]
 
-type TitleMode = 'modes' | 'offline' | 'host' | 'join'
+type TitleMode = 'modes' | 'offline' | 'vsAi' | 'host' | 'join'
 
 type TitleScreenProps = {
   offlineSaveSummary: OfflineSaveSummary | null
@@ -15,6 +15,7 @@ type TitleScreenProps = {
   onHostOnlineGame: (playerCount: PlayerCount, hostName: string) => void
   onJoinOnlineGame: (roomCode: string, playerName: string) => void
   onStartOfflineGame: (playerCount: PlayerCount) => void
+  onStartVsAiGame: (playerCount: PlayerCount) => void
 }
 
 export function TitleScreen({
@@ -24,6 +25,7 @@ export function TitleScreen({
   onHostOnlineGame,
   onJoinOnlineGame,
   onStartOfflineGame,
+  onStartVsAiGame,
 }: TitleScreenProps) {
   const [mode, setMode] = useState<TitleMode>('modes')
   const [hostPlayerCount, setHostPlayerCount] = useState<PlayerCount>(2)
@@ -41,7 +43,8 @@ export function TitleScreen({
       <p className="eyebrow">Local and online game</p>
       <h2 id="title-screen-heading">Brass: Birmingham</h2>
       <p className="lede">
-        Choose offline hot-seat play, host a private online room, or join a friend's room.
+        Choose offline hot-seat play, solo vs AI, host a private online room, or join a friend&apos;s
+        room.
       </p>
 
       {mode === 'modes' && offlineSaveSummary ? (
@@ -65,6 +68,9 @@ export function TitleScreen({
         <div className="title-actions title-actions--stacked" aria-label="Choose game mode">
           <button onClick={() => setMode('offline')} type="button">
             Play Offline
+          </button>
+          <button onClick={() => setMode('vsAi')} type="button">
+            Play vs AI
           </button>
           <button onClick={() => setMode('host')} type="button">
             Host Online Game
@@ -94,6 +100,28 @@ export function TitleScreen({
           <div className="title-actions" aria-label="Start offline player count">
             {playerCounts.map((count) => (
               <button key={count} onClick={() => onStartOfflineGame(count)} type="button">
+                Start {count}-player game
+              </button>
+            ))}
+          </div>
+          <button className="title-back-button" onClick={backToModes} type="button">
+            Back
+          </button>
+        </div>
+      ) : null}
+
+      {mode === 'vsAi' ? (
+        <div className="title-mode-panel">
+          <p className="eyebrow">Solo vs AI</p>
+          <p>You play as Player 1. AI opponents discard two random cards and pass on their turns.</p>
+          {offlineSaveSummary ? (
+            <p className="title-continue-note">
+              Starting a new game replaces your saved offline game.
+            </p>
+          ) : null}
+          <div className="title-actions" aria-label="Start vs AI player count">
+            {playerCounts.map((count) => (
+              <button key={count} onClick={() => onStartVsAiGame(count)} type="button">
                 Start {count}-player game
               </button>
             ))}

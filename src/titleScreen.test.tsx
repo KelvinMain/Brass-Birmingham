@@ -13,10 +13,12 @@ describe('TitleScreen', () => {
         onHostOnlineGame={() => undefined}
         onJoinOnlineGame={() => undefined}
         onStartOfflineGame={() => undefined}
+        onStartVsAiGame={() => undefined}
       />,
     )
 
     expect(markup).toContain('Play Offline')
+    expect(markup).toContain('Play vs AI')
     expect(markup).toContain('Host Online Game')
     expect(markup).toContain('Join Online Game')
     expect(markup).not.toContain('Controls and tips')

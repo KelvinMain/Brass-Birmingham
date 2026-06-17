@@ -27,7 +27,6 @@ export type LocalPlayer = {
   moneySpentThisRound: number
   victoryPoints: number
   income: number
-  developedIndustries: IndustryTilePlacement[]
   flippedPlayerBoardTileIds: string[]
 }
 
@@ -37,6 +36,8 @@ export type GameState = {
   stacks: DrawableStacks
   discardPile: GameCard[]
   board: BoardState
+  developedIndustries: IndustryTilePlacement[]
+  outdatedIndustries: IndustryTilePlacement[]
   era: Era
   status: GameStatus
   activePlayerIndex: number
@@ -248,7 +249,6 @@ export function createGameState(
     moneySpentThisRound: 0,
     victoryPoints: 0,
     income: STARTING_INCOME_TRACK,
-    developedIndustries: [],
     flippedPlayerBoardTileIds: [],
   }))
   const stacks = createDrawableStacks(playerCount)
@@ -276,6 +276,8 @@ export function createGameState(
     },
     discardPile,
     board: createBoardState(playerCount),
+    developedIndustries: [],
+    outdatedIndustries: [],
     era: 'canal',
     status: 'playing',
     activePlayerIndex: 0,
@@ -287,75 +289,67 @@ export function createGameState(
 
 export function developIndustryTile(
   game: GameState,
-  playerId: string,
   tile: IndustryTilePlacement,
 ): GameState {
-  if (!game.players.some((player) => player.id === playerId)) {
+  return {
+    ...game,
+    developedIndustries: [...game.developedIndustries, tile],
+  }
+}
+
+export function removeDevelopedIndustryTile(game: GameState, tileId: string): GameState {
+  return {
+    ...game,
+    developedIndustries: game.developedIndustries.filter((tile) => tile.id !== tileId),
+  }
+}
+
+export function flipDevelopedIndustryTile(game: GameState, tileId: string): GameState {
+  if (!game.developedIndustries.some((tile) => tile.id === tileId)) {
     return game
   }
 
   return {
     ...game,
-    players: game.players.map((player) =>
-      player.id === playerId
+    developedIndustries: game.developedIndustries.map((tile) =>
+      tile.id === tileId
         ? {
-            ...player,
-            developedIndustries: [...player.developedIndustries, tile],
+            ...tile,
+            flipped: !tile.flipped,
           }
-        : player,
+        : tile,
     ),
   }
 }
 
-export function removeDevelopedIndustryTile(
-  game: GameState,
-  playerId: string,
-  tileId: string,
-): GameState {
-  if (!game.players.some((player) => player.id === playerId)) {
-    return game
-  }
-
+export function outdateIndustryTile(game: GameState, tile: IndustryTilePlacement): GameState {
   return {
     ...game,
-    players: game.players.map((player) =>
-      player.id === playerId
-        ? {
-            ...player,
-            developedIndustries: player.developedIndustries.filter((tile) => tile.id !== tileId),
-          }
-        : player,
-    ),
+    outdatedIndustries: [...game.outdatedIndustries, tile],
   }
 }
 
-export function flipDevelopedIndustryTile(
-  game: GameState,
-  playerId: string,
-  tileId: string,
-): GameState {
-  const player = game.players.find((currentPlayer) => currentPlayer.id === playerId)
+export function removeOutdatedIndustryTile(game: GameState, tileId: string): GameState {
+  return {
+    ...game,
+    outdatedIndustries: game.outdatedIndustries.filter((tile) => tile.id !== tileId),
+  }
+}
 
-  if (!player?.developedIndustries.some((tile) => tile.id === tileId)) {
+export function flipOutdatedIndustryTile(game: GameState, tileId: string): GameState {
+  if (!game.outdatedIndustries.some((tile) => tile.id === tileId)) {
     return game
   }
 
   return {
     ...game,
-    players: game.players.map((currentPlayer) =>
-      currentPlayer.id === playerId
+    outdatedIndustries: game.outdatedIndustries.map((tile) =>
+      tile.id === tileId
         ? {
-            ...currentPlayer,
-            developedIndustries: currentPlayer.developedIndustries.map((tile) =>
-              tile.id === tileId
-                ? {
-                    ...tile,
-                    flipped: !tile.flipped,
-                  }
-                : tile,
-            ),
+            ...tile,
+            flipped: !tile.flipped,
           }
-        : currentPlayer,
+        : tile,
     ),
   }
 }

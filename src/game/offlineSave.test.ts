@@ -78,6 +78,47 @@ describe('offlineSave', () => {
     expect(loadOfflineSave(storage)).toBeNull()
   })
 
+  it('loads legacy v1 saves with per-player developed industries', () => {
+    const storage = createMemoryStorage()
+    const game = createGameState(2)
+    const tile = {
+      id: 'player-1-cotton-1-1',
+      industry: 'cotton' as const,
+      ownerId: 'player-1',
+      tileId: 'cotton-1',
+    }
+    const legacyGame = {
+      ...game,
+      players: game.players.map((player, index) =>
+        index === 0
+          ? {
+              ...player,
+              developedIndustries: [tile],
+            }
+          : {
+              ...player,
+              developedIndustries: [],
+            },
+      ),
+    }
+
+    storage.setItem(
+      OFFLINE_SAVE_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        savedAt: new Date().toISOString(),
+        game: legacyGame,
+        turnStartSnapshot: null,
+      }),
+    )
+
+    const payload = loadOfflineSave(storage)
+
+    expect(payload?.game.developedIndustries).toEqual([tile])
+    expect(payload?.game.outdatedIndustries).toEqual([])
+    expect(payload?.game.players.every((player) => !('developedIndustries' in player))).toBe(true)
+  })
+
   it('formats save age for display', () => {
     const savedAt = new Date('2026-06-17T12:00:00.000Z').toISOString()
 
