@@ -251,6 +251,7 @@ export function passTurn(game: GameState, options: PassTurnOptions = {}): GameSt
 export function createGameState(
   playerCount: PlayerCount,
   standardDeck: StandardCard[] = getDeckForPlayerCount(playerCount),
+  random?: () => number,
 ): GameState {
   const players: LocalPlayer[] = Array.from({ length: playerCount }, (_, index) => ({
     id: `player-${index + 1}`,
@@ -288,7 +289,7 @@ export function createGameState(
       standard: standardDeck.slice(nextStandardCardIndex + playerCount),
     },
     discardPile,
-    board: createBoardState(playerCount),
+    board: createBoardState(playerCount, random),
     developedIndustries: [],
     outdatedIndustries: [],
     era: 'canal',

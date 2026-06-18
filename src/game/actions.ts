@@ -32,7 +32,7 @@ import {
   updatePlayerRoundSpending,
   updatePlayerScore,
 } from './game'
-import type { GameState } from './game'
+import type { GameState, PassTurnOptions } from './game'
 
 type WildStackKey = Exclude<keyof DrawableStacks, 'standard'>
 
@@ -45,7 +45,7 @@ type ResourceSource = {
 type IndustrySidebarArea = 'developed' | 'outdated'
 
 export type GameAction =
-  | { type: 'pass-turn'; playerId: string }
+  | { type: 'pass-turn'; playerId: string; passTurnOptions?: PassTurnOptions }
   | { type: 'discard-card'; playerId: string; cardId: string }
   | { type: 'draw-wild-card'; playerId: string; stack: WildStackKey }
   | {
@@ -217,7 +217,7 @@ export function applyGameAction(game: GameState, action: GameAction): GameState 
 
   switch (action.type) {
     case 'pass-turn':
-      return passTurn(game)
+      return passTurn(game, action.passTurnOptions)
     case 'discard-card':
       return discardCardFromPlayerHand(game, action.playerId, action.cardId)
     case 'draw-wild-card': {

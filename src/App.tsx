@@ -33,7 +33,12 @@ import {
 import type { DrawableStacks, GameCard } from './game/deck'
 import { applyGameAction } from './game/actions'
 import type { GameAction } from './game/actions'
-import { runAiTurn } from './game/ai'
+import {
+  createVsAiAgentFactory,
+  initEvolvedAgent,
+  runAiTurn,
+} from './game/ai'
+import type { AiAgentFactory } from './game/ai'
 import type { AiLogEntry } from './game/ai'
 import {
   createGameState,
@@ -424,6 +429,7 @@ function App() {
   const aiTurnExecutedRef = useRef<string | null>(null)
   const gameRef = useRef<GameState | null>(null)
   const gameModeRef = useRef<LocalGameMode | null>(gameMode)
+  const vsAiAgentFactoryRef = useRef<AiAgentFactory | null>(null)
   const [aiTurnRetry, setAiTurnRetry] = useState(0)
   const [offlineSaveSummary, setOfflineSaveSummary] = useState<OfflineSaveSummary | null>(() =>
     getOfflineSaveSummary(),
@@ -556,6 +562,17 @@ function App() {
   }, [gameMode])
 
   useEffect(() => {
+    if (!isVsAiGame) {
+      vsAiAgentFactoryRef.current = null
+      return
+    }
+
+    void initEvolvedAgent().then((evolvedFactory) => {
+      vsAiAgentFactoryRef.current = createVsAiAgentFactory(evolvedFactory)
+    })
+  }, [isVsAiGame])
+
+  useEffect(() => {
     gameRef.current = game
   }, [game])
 
@@ -640,7 +657,9 @@ function App() {
         ...summarizeGameState(currentGame),
       })
 
-      const { game: nextGame, logEntries } = runAiTurn(currentGame)
+      const { game: nextGame, logEntries } = runAiTurn(currentGame, {
+        createAgent: vsAiAgentFactoryRef.current ?? undefined,
+      })
 
       if (nextGame === currentGame) {
         aiTurnKeyRef.current = null

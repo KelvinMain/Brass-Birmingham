@@ -10,9 +10,11 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test": "vitest run",
+    "evolve-ai": "tsx scripts/evolve-ai.ts",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tensorflow/tfjs": "^4.22.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "ws": "^8.21.0"
