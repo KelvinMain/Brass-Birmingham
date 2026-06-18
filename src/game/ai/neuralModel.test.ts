@@ -4,15 +4,17 @@ import { createGameState } from '../game'
 import { AI_PARAM_COUNT, AI_PARAM_NAMES, DEFAULT_PARAMS } from './params'
 import {
   buildScoringNetwork,
+  getModelWeightVector,
   predictParams,
   serializeModel,
   deserializeModel,
+  setModelWeightVector,
   warmStartToDefaultParams,
 } from './neuralModel'
 import { encodeAiState, AI_STATE_FEATURE_COUNT } from './stateEncoding'
 
 describe('neural scoring network', () => {
-  it('outputs 50 scaled parameters', () => {
+  it('outputs 77 direct parameters', () => {
     const model = buildScoringNetwork()
     const game = createGameState(2)
     const state = encodeAiState(game, game.players[1].id)
@@ -30,9 +32,7 @@ describe('neural scoring network', () => {
     const game = createGameState(2)
     const params = predictParams(model, encodeAiState(game, game.players[1].id))
 
-    const gameplayParams = AI_PARAM_NAMES.filter(
-      (name) => name !== 'biasDiscard' && name !== 'biasScout',
-    )
+    const gameplayParams = AI_PARAM_NAMES.filter((name) => name !== 'biasScout')
 
     for (const name of gameplayParams) {
       const expected = DEFAULT_PARAMS[name]
@@ -41,6 +41,20 @@ describe('neural scoring network', () => {
       expect(Math.abs(actual - expected)).toBeLessThanOrEqual(tolerance)
     }
   }, 30_000)
+
+  it('round-trips large model weight vectors without stack overflow', () => {
+    const model = buildScoringNetwork()
+    const vector = getModelWeightVector(model)
+
+    expect(vector.length).toBeGreaterThan(100_000)
+
+    vector[0] = 0.25
+    setModelWeightVector(model, vector)
+
+    const restored = getModelWeightVector(model)
+    expect(restored[0]).toBeCloseTo(0.25, 5)
+    expect(restored.length).toBe(vector.length)
+  })
 
   it('serializes and deserializes model weights', () => {
     const model = buildScoringNetwork()

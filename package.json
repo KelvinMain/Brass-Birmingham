@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "evolve-ai": "tsx scripts/evolve-ai.ts",
+    "evolve-ai-league": "tsx scripts/evolve-ai.ts -- --mode league --resume-from public/ai/evolved-model.json",
     "preview": "vite preview"
   },
   "dependencies": {

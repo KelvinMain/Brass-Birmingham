@@ -4,6 +4,7 @@ import { createStrategicAiAgent, type AiAgentFactory } from '../aiActions'
 import {
   cloneModel,
   buildScoringNetwork,
+  deserializeModel,
   getModelWeightVector,
   serializeModel,
   setModelWeightVector,
@@ -13,6 +14,16 @@ import {
 import { createNeuralAiAgentFactory } from './neuralAgent'
 import { createSeededRandom } from './random'
 import { getPlayerFitness, simulateAiGame } from './simulator'
+import {
+  buildLeagueOpponentContext,
+  describeLeagueConfig,
+  HallOfFame,
+  mergeLeagueConfig,
+  pickLeagueOpponentFactory,
+  type LeagueConfig,
+} from './league'
+
+export type EvolutionMode = 'fixed' | 'league'
 
 export type EvolutionConfig = {
   populationSize: number
@@ -24,6 +35,9 @@ export type EvolutionConfig = {
   mutationSigma: number
   outputPath?: string
   verboseGames?: boolean
+  mode?: EvolutionMode
+  league?: Partial<LeagueConfig>
+  resumeModel?: tf.LayersModel
   onProgress?: (message: string) => void
 }
 
@@ -36,9 +50,11 @@ export type EvolutionGenerationStats = {
 
 export type EvolutionResult = {
   bestModel: tf.LayersModel
+  bestFitness: number
   generations: EvolutionGenerationStats[]
   serialized: SerializedScoringNetwork
   outputPath?: string
+  mode: EvolutionMode
 }
 
 const DEFAULT_CONFIG: EvolutionConfig = {
@@ -50,6 +66,7 @@ const DEFAULT_CONFIG: EvolutionConfig = {
   mutationRate: 0.15,
   mutationSigma: 0.05,
   verboseGames: false,
+  mode: 'fixed',
 }
 
 function formatDuration(ms: number): string {
@@ -84,25 +101,45 @@ export async function runEvolution(
   partialConfig: Partial<EvolutionConfig> = {},
 ): Promise<EvolutionResult> {
   const config = { ...DEFAULT_CONFIG, ...partialConfig }
+  const leagueConfig = mergeLeagueConfig(config.league)
   const startedAt = Date.now()
   const totalSimulations = config.generations * config.populationSize * config.gamesPerGenome
+  const baselineFactory: AiAgentFactory = createStrategicAiAgent
+  const hallOfFame = new HallOfFame(leagueConfig.hallOfFameSize)
 
   reportProgress(
     config,
     startedAt,
-    `Starting evolution: ${config.generations} generations × ${config.populationSize} genomes × ${config.gamesPerGenome} games = ${totalSimulations.toLocaleString()} full games`,
+    `Starting evolution (${config.mode}): ${config.generations} generations × ${config.populationSize} genomes × ${config.gamesPerGenome} games = ${totalSimulations.toLocaleString()} full games`,
   )
-  reportProgress(config, startedAt, 'Warming up neural network to heuristic defaults...')
 
-  const baselineFactory: AiAgentFactory = createStrategicAiAgent
-  const seedModel = buildScoringNetwork()
-  await warmStartToDefaultParams(seedModel)
+  if (config.mode === 'league') {
+    reportProgress(config, startedAt, `League opponents: ${describeLeagueConfig(leagueConfig)}`)
+  } else {
+    reportProgress(config, startedAt, 'Opponent: fixed heuristic baseline')
+  }
 
-  reportProgress(config, startedAt, 'Warm-start complete. Building initial population...')
+  let seedModel: tf.LayersModel
+
+  if (config.resumeModel) {
+    seedModel = cloneModel(config.resumeModel)
+    hallOfFame.seed(seedModel)
+    reportProgress(config, startedAt, 'Loaded resume model into seed genome and hall of fame')
+  } else {
+    seedModel = buildScoringNetwork()
+    reportProgress(config, startedAt, 'Warming up neural network to heuristic defaults...')
+    await warmStartToDefaultParams(seedModel)
+    reportProgress(config, startedAt, 'Warm-start complete')
+  }
+
+  reportProgress(config, startedAt, 'Building initial population...')
 
   let population = Array.from({ length: config.populationSize }, (_, index) => {
-    const model = index === 0 ? seedModel : mutateModel(cloneModel(seedModel), config, index + 1)
-    return model
+    if (index === 0) {
+      return cloneModel(seedModel)
+    }
+
+    return mutateModel(cloneModel(seedModel), config, index + 1)
   })
 
   reportProgress(
@@ -112,12 +149,13 @@ export async function runEvolution(
   )
 
   const generationStats: EvolutionGenerationStats[] = []
-  let bestModel = population[0]
+  let bestModel = cloneModel(population[0])
   let bestFitness = Number.NEGATIVE_INFINITY
   let completedSimulations = 0
 
   for (let generation = 0; generation < config.generations; generation += 1) {
     const generationStartedAt = Date.now()
+    const championModels = hallOfFame.getModels()
     const evaluated = population.map((model, genomeIndex) => {
       reportProgress(
         config,
@@ -125,16 +163,19 @@ export async function runEvolution(
         `Gen ${generation + 1}/${config.generations} · genome ${genomeIndex + 1}/${config.populationSize} · playing ${config.gamesPerGenome} games...`,
       )
 
-      const fitnessSummary = evaluateGenome(
+      const fitnessSummary = evaluateGenome({
         model,
-        baselineFactory,
         config,
-        generation,
+        leagueConfig,
+        baselineFactory,
+        population,
         genomeIndex,
+        championModels,
+        generation,
         startedAt,
-        completedSimulations,
+        completedSimulationsBefore: completedSimulations,
         totalSimulations,
-      )
+      })
 
       completedSimulations += config.gamesPerGenome
 
@@ -167,15 +208,19 @@ export async function runEvolution(
       bestWinRate: generationBest.winRate,
     })
 
+    for (const elite of evaluated.slice(0, config.eliteCount)) {
+      hallOfFame.add(elite.model, elite.fitness)
+    }
+
     if (generationBest.fitness > bestFitness) {
       bestFitness = generationBest.fitness
-      bestModel = generationBest.model
+      bestModel = cloneModel(generationBest.model)
     }
 
     reportProgress(
       config,
       startedAt,
-      `Generation ${generation + 1}/${config.generations} complete in ${formatDuration(generationElapsed)} · bestFitness=${generationBest.fitness.toFixed(3)} · avgFitness=${averageFitness.toFixed(3)} · bestWinRate=${(generationBest.winRate * 100).toFixed(1)}% · ETA ${formatDuration(etaMs)}`,
+      `Generation ${generation + 1}/${config.generations} complete in ${formatDuration(generationElapsed)} · bestFitness=${generationBest.fitness.toFixed(3)} · allTimeBest=${bestFitness.toFixed(3)} · avgFitness=${averageFitness.toFixed(3)} · bestWinRate=${(generationBest.winRate * 100).toFixed(1)}% · hallOfFame=${hallOfFame.size} · ETA ${formatDuration(etaMs)}`,
     )
 
     const nextPopulation = evaluated.slice(0, config.eliteCount).map((entry) => cloneModel(entry.model))
@@ -203,37 +248,73 @@ export async function runEvolution(
   reportProgress(
     config,
     startedAt,
-    `Evolution finished in ${formatDuration(Date.now() - startedAt)} · bestFitness=${bestFitness.toFixed(3)}`,
+    `Evolution finished in ${formatDuration(Date.now() - startedAt)} · allTimeBestFitness=${bestFitness.toFixed(3)}`,
   )
 
   return {
     bestModel,
+    bestFitness,
     generations: generationStats,
     serialized,
     outputPath: config.outputPath,
+    mode: config.mode ?? 'fixed',
   }
 }
 
-function evaluateGenome(
-  model: tf.LayersModel,
-  baselineFactory: AiAgentFactory,
-  config: EvolutionConfig,
-  generation: number,
-  genomeIndex: number,
-  startedAt: number,
-  completedSimulationsBefore: number,
-  totalSimulations: number,
-): { fitness: number; winRate: number } {
+type EvaluateGenomeOptions = {
+  model: tf.LayersModel
+  config: EvolutionConfig
+  leagueConfig: LeagueConfig
+  baselineFactory: AiAgentFactory
+  population: tf.LayersModel[]
+  genomeIndex: number
+  championModels: tf.LayersModel[]
+  generation: number
+  startedAt: number
+  completedSimulationsBefore: number
+  totalSimulations: number
+}
+
+function evaluateGenome(options: EvaluateGenomeOptions): { fitness: number; winRate: number } {
+  const {
+    model,
+    config,
+    leagueConfig,
+    baselineFactory,
+    population,
+    genomeIndex,
+    championModels,
+    generation,
+    startedAt,
+    completedSimulationsBefore,
+    totalSimulations,
+  } = options
+
   const candidateFactory = createNeuralAiAgentFactory(model)
+  const leagueContext =
+    config.mode === 'league'
+      ? buildLeagueOpponentContext(population, genomeIndex, championModels)
+      : null
+
   let fitnessTotal = 0
   let wins = 0
 
   for (let gameIndex = 0; gameIndex < config.gamesPerGenome; gameIndex += 1) {
     const seed = config.seed + generation * 10_000 + genomeIndex * 100 + gameIndex
+    const opponentFactory =
+      config.mode === 'league' && leagueContext
+        ? pickLeagueOpponentFactory(
+            leagueConfig,
+            leagueContext,
+            createSeededRandom(seed + 50_000),
+          )
+        : baselineFactory
+
     const result = simulateAiGame({
       playerCount: 2,
-      agentFactories: [candidateFactory, baselineFactory],
+      agentFactories: [candidateFactory, opponentFactory],
       seed,
+      randomizeRoundOneStartingPlayer: true,
     })
     const fitness = getPlayerFitness(result, 'player-1')
     fitnessTotal += fitness.fitness
@@ -291,4 +372,10 @@ function gaussianRandom(random: () => number): number {
   const u2 = random()
 
   return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2)
+}
+
+export function loadEvolutionModelFromSerialized(
+  serialized: SerializedScoringNetwork,
+): tf.LayersModel {
+  return deserializeModel(serialized)
 }

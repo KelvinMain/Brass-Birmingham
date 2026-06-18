@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { createRequire } from 'node:module'
 
@@ -27,7 +27,8 @@ console.log(
     : 'Note: most evolution time is simulating full games (~1-2s each), not TensorFlow inference.\n',
 )
 
-const { runEvolution } = await import('../src/game/ai/evolution')
+const { runEvolution, loadEvolutionModelFromSerialized } = await import('../src/game/ai/evolution')
+const { AI_PARAM_COUNT, AI_STATE_FEATURE_COUNT } = await import('../src/game/ai')
 
 function readFlag(name: string): string | undefined {
   const index = process.argv.indexOf(name)
@@ -51,22 +52,83 @@ function readNumberFlag(name: string, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
+function hasFlag(name: string): boolean {
+  return process.argv.includes(name)
+}
+
+async function loadResumeModel(path: string | undefined) {
+  if (!path) {
+    return undefined
+  }
+
+  const resolved = resolve(path)
+  const serialized = JSON.parse(await readFile(resolved, 'utf8'))
+
+  if (
+    serialized.stateFeatureCount !== AI_STATE_FEATURE_COUNT ||
+    serialized.paramCount !== AI_PARAM_COUNT
+  ) {
+    throw new Error(
+      `Resume model at ${resolved} does not match current architecture (${serialized.stateFeatureCount}/${serialized.paramCount} vs ${AI_STATE_FEATURE_COUNT}/${AI_PARAM_COUNT}). Retrain from scratch first.`,
+    )
+  }
+
+  return loadEvolutionModelFromSerialized(serialized)
+}
+
 const generations = readNumberFlag('--generations', 50)
 const population = readNumberFlag('--population', 24)
 const games = readNumberFlag('--games', 16)
 const seed = readNumberFlag('--seed', 42)
 const output = readFlag('--output') ?? 'public/ai/evolved-model.json'
-const verboseGames = process.argv.includes('--verbose-games')
+const resumeFrom = readFlag('--resume-from')
+const mode = readFlag('--mode') === 'league' || hasFlag('--league') ? 'league' : 'fixed'
+const verboseGames = hasFlag('--verbose-games')
 const totalGames = generations * population * games
 
+const league =
+  mode === 'league'
+    ? {
+        heuristicWeight: readNumberFlag('--league-heuristic', 0.35),
+        randomWeight: readNumberFlag('--league-random', 0.1),
+        populationWeight: readNumberFlag('--league-population', 0.4),
+        championWeight: readNumberFlag('--league-champion', 0.15),
+        hallOfFameSize: readNumberFlag('--league-hall-size', 3),
+      }
+    : undefined
+
 console.log(
-  `Starting AI evolution: generations=${generations} population=${population} games=${games} seed=${seed}`,
+  `Starting AI evolution: mode=${mode} generations=${generations} population=${population} games=${games} seed=${seed}`,
 )
+
+if (mode === 'league') {
+  console.log(
+    'League training mixes heuristic, random, population self-play, and hall-of-fame champions each game.',
+  )
+
+  if (!resumeFrom) {
+    console.log(
+      'Tip: after a fixed-strategy run, continue with --mode league --resume-from public/ai/evolved-model.json',
+    )
+  }
+} else {
+  console.log('Fixed mode trains every genome only against the heuristic baseline.')
+  console.log(
+    'Next step after this run: npm run evolve-ai -- --mode league --resume-from public/ai/evolved-model.json --generations 20 --population 12 --games 12',
+  )
+}
+
+if (resumeFrom) {
+  console.log(`Resuming from ${resumeFrom}`)
+}
+
 console.log(`Total simulations: ${totalGames.toLocaleString()} full 2-player games`)
 console.log(
   'Tip: each game takes ~1-3s. Defaults can take many hours. Try --generations 5 --population 8 --games 4 for a quick test.',
 )
 console.log('Progress logs appear below as each genome finishes.\n')
+
+const resumeModel = await loadResumeModel(resumeFrom)
 
 const result = await runEvolution({
   generations,
@@ -75,6 +137,9 @@ const result = await runEvolution({
   seed,
   outputPath: output,
   verboseGames,
+  mode,
+  league,
+  resumeModel,
 })
 
 if (result.outputPath) {
@@ -83,6 +148,8 @@ if (result.outputPath) {
   await writeFile(resolved, JSON.stringify(result.serialized), 'utf8')
 }
 
+const lastGenerationBest = result.generations.at(-1)?.bestFitness.toFixed(3) ?? 'n/a'
+
 console.log(
-  `Evolution complete. Best fitness=${result.generations.at(-1)?.bestFitness.toFixed(3)} saved to ${output}`,
+  `Evolution complete. mode=${result.mode} allTimeBestFitness=${result.bestFitness.toFixed(3)} lastGenBest=${lastGenerationBest} saved to ${output}`,
 )

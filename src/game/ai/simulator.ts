@@ -11,6 +11,10 @@ export type SimulateGameOptions = {
   agentFactories: AiAgentFactory[]
   seed: number
   maxTurns?: number
+  /** When set, overrides randomization and fixes round-one starting seat. */
+  startingPlayerIndex?: number
+  /** Randomize who takes the first turn of round one (seeded, deterministic per game). */
+  randomizeRoundOneStartingPlayer?: boolean
 }
 
 export type SimulateGamePlayerResult = {
@@ -34,14 +38,61 @@ export function createSeededGameState(playerCount: PlayerCount, seed: number): G
   return createGameState(playerCount, deck, random)
 }
 
+export function resolveRoundOneStartingPlayerIndex(
+  playerCount: PlayerCount,
+  seed: number,
+  options: Pick<SimulateGameOptions, 'startingPlayerIndex' | 'randomizeRoundOneStartingPlayer'> = {},
+): number {
+  if (options.startingPlayerIndex !== undefined) {
+    return ((options.startingPlayerIndex % playerCount) + playerCount) % playerCount
+  }
+
+  if (!options.randomizeRoundOneStartingPlayer) {
+    return 0
+  }
+
+  return Math.floor(createSeededRandom(seed + 31_337)() * playerCount)
+}
+
+export function applyRoundOneStartingPlayer(
+  game: GameState,
+  startingPlayerIndex: number,
+): GameState {
+  const activePlayer = game.players[startingPlayerIndex]
+
+  if (!activePlayer || game.roundNumber !== 1 || game.turnsTakenThisRound !== 0) {
+    return game
+  }
+
+  return {
+    ...game,
+    activePlayerIndex: startingPlayerIndex,
+    turnStartHandCount: activePlayer.hand.length,
+  }
+}
+
 export function simulateAiGame(options: SimulateGameOptions): SimulateGameResult {
-  const { playerCount, agentFactories, seed, maxTurns = 600 } = options
+  const {
+    playerCount,
+    agentFactories,
+    seed,
+    maxTurns = 600,
+    startingPlayerIndex,
+    randomizeRoundOneStartingPlayer = false,
+  } = options
   const random = createSeededRandom(seed + 1)
   const railDeck = shuffleDeck(
     getDeckForPlayerCount(playerCount),
     createSeededRandom(seed + 9999),
   )
-  let game = createSeededGameState(playerCount, seed)
+  const openingStartingPlayerIndex = resolveRoundOneStartingPlayerIndex(playerCount, seed, {
+    startingPlayerIndex,
+    randomizeRoundOneStartingPlayer,
+  })
+  let game = applyRoundOneStartingPlayer(
+    createSeededGameState(playerCount, seed),
+    openingStartingPlayerIndex,
+  )
   let turnsPlayed = 0
 
   while (game.status === 'playing' && turnsPlayed < maxTurns) {

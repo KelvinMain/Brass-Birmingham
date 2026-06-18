@@ -4,7 +4,7 @@ import {
   AI_PARAM_COUNT,
   AI_PARAM_NAMES,
   DEFAULT_PARAMS,
-  PARAM_SCALE,
+  paramsFromNetworkOutput,
   type AiScoringParams,
 } from './params'
 import { AI_STATE_FEATURE_COUNT } from './stateEncoding'
@@ -21,13 +21,13 @@ export function buildScoringNetwork(
   const model = tf.sequential()
   model.add(
     tf.layers.dense({
-      units: 128,
+      units: 512,
       activation: 'relu',
       inputShape: [stateFeatureCount],
     }),
   )
-  model.add(tf.layers.dense({ units: 64, activation: 'relu' }))
-  model.add(tf.layers.dense({ units: AI_PARAM_COUNT, activation: 'tanh' }))
+  model.add(tf.layers.dense({ units: 256, activation: 'relu' }))
+  model.add(tf.layers.dense({ units: AI_PARAM_COUNT }))
   model.compile({ optimizer: 'adam', loss: 'meanSquaredError' })
 
   return model
@@ -39,26 +39,23 @@ export function predictParams(model: tf.LayersModel, stateVector: Float32Array):
     const output = model.predict(input) as tf.Tensor
     const raw = output.dataSync()
 
-    return Object.fromEntries(
-      AI_PARAM_NAMES.map((name, index) => {
-        const magnitude = Math.abs(PARAM_SCALE[name])
-        const sign = Math.sign(DEFAULT_PARAMS[name]) || 1
-
-        return [name, (raw[index] ?? 0) * magnitude * sign]
-      }),
-    ) as AiScoringParams
+    return paramsFromNetworkOutput(raw)
   })
 }
 
 export function getModelWeightVector(model: tf.LayersModel): Float32Array {
   const weights = model.getWeights()
-  const values: number[] = []
+  const totalSize = weights.reduce((sum, weight) => sum + weight.size, 0)
+  const values = new Float32Array(totalSize)
+  let offset = 0
 
   for (const weight of weights) {
-    values.push(...Array.from(weight.dataSync()))
+    const data = weight.dataSync()
+    values.set(data, offset)
+    offset += data.length
   }
 
-  return Float32Array.from(values)
+  return values
 }
 
 export function setModelWeightVector(model: tf.LayersModel, vector: Float32Array | number[]): void {
@@ -87,26 +84,12 @@ export async function warmStartToDefaultParams(
   steps = 200,
 ): Promise<void> {
   const weights = model.getWeights()
-  const scaledTarget = Float32Array.from(
-    AI_PARAM_NAMES.map((name) => {
-      const magnitude = Math.abs(PARAM_SCALE[name])
-      const sign = Math.sign(DEFAULT_PARAMS[name]) || 1
-
-      if (magnitude === 0) {
-        return 0
-      }
-
-      const normalized = DEFAULT_PARAMS[name] / (magnitude * sign)
-      const clamped = Math.max(-0.999, Math.min(0.999, normalized))
-
-      return 0.5 * Math.log((1 + clamped) / (1 - clamped))
-    }),
-  )
+  const target = Float32Array.from(AI_PARAM_NAMES.map((name) => DEFAULT_PARAMS[name]))
 
   if (weights.length >= 1) {
     const nextWeights = weights.map((weight, index) => {
       if (index === weights.length - 1) {
-        return tf.tensor(scaledTarget, weight.shape, weight.dtype)
+        return tf.tensor(target, weight.shape, weight.dtype)
       }
 
       return tf.zeros(weight.shape, weight.dtype)
@@ -116,17 +99,17 @@ export async function warmStartToDefaultParams(
   }
 
   const input = tf.tensor2d([Array.from(new Float32Array(AI_STATE_FEATURE_COUNT))])
-  const target = tf.tensor2d([Array.from(scaledTarget)])
+  const targetTensor = tf.tensor2d([Array.from(target)])
 
   for (let step = 0; step < steps; step += 1) {
-    await model.fit(input, target, {
+    await model.fit(input, targetTensor, {
       epochs: 1,
       verbose: 0,
     })
   }
 
   input.dispose()
-  target.dispose()
+  targetTensor.dispose()
 }
 
 export function serializeModel(model: tf.LayersModel): SerializedScoringNetwork {
@@ -157,6 +140,13 @@ export async function loadEvolvedModelFromUrl(url: string): Promise<tf.LayersMod
     }
 
     const serialized = (await response.json()) as SerializedScoringNetwork
+
+    if (
+      serialized.stateFeatureCount !== AI_STATE_FEATURE_COUNT ||
+      serialized.paramCount !== AI_PARAM_COUNT
+    ) {
+      return null
+    }
 
     return deserializeModel(serialized)
   } catch {

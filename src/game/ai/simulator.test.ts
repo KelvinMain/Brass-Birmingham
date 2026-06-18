@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import { createStrategicAiAgent } from '../aiActions'
-import { createSeededGameState, simulateAiGame } from './simulator'
+import { createGameState } from '../game'
+import {
+  applyRoundOneStartingPlayer,
+  createSeededGameState,
+  resolveRoundOneStartingPlayerIndex,
+  simulateAiGame,
+} from './simulator'
 
 describe('simulateAiGame', () => {
   it('plays a full 2-player game to completion', () => {
@@ -25,6 +31,43 @@ describe('simulateAiGame', () => {
       agentFactories: [strategic, strategic],
       seed: 24680,
       maxTurns: 600,
+    }
+
+    const first = simulateAiGame(options)
+    const second = simulateAiGame(options)
+
+    expect(first.playerResults).toEqual(second.playerResults)
+    expect(first.turnsPlayed).toBe(second.turnsPlayed)
+    expect(first.status).toBe(second.status)
+  }, 120_000)
+
+  it('randomizes round-one starting player deterministically from the seed', () => {
+    expect(
+      resolveRoundOneStartingPlayerIndex(2, 0, { randomizeRoundOneStartingPlayer: true }),
+    ).toBe(1)
+    expect(
+      resolveRoundOneStartingPlayerIndex(2, 0, { randomizeRoundOneStartingPlayer: true }),
+    ).toBe(1)
+    expect(
+      resolveRoundOneStartingPlayerIndex(2, 1, { randomizeRoundOneStartingPlayer: true }),
+    ).toBe(0)
+  })
+
+  it('applies the chosen starting seat only at the opening of round one', () => {
+    const game = applyRoundOneStartingPlayer(createGameState(2), 1)
+
+    expect(game.activePlayerIndex).toBe(1)
+    expect(game.players[1].id).toBe('player-2')
+  })
+
+  it('stays deterministic when round-one starting player randomization is enabled', () => {
+    const strategic = createStrategicAiAgent
+    const options = {
+      playerCount: 2 as const,
+      agentFactories: [strategic, strategic],
+      seed: 24680,
+      maxTurns: 600,
+      randomizeRoundOneStartingPlayer: true,
     }
 
     const first = simulateAiGame(options)

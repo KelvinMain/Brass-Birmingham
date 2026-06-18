@@ -21,9 +21,8 @@ export {
   AI_PARAM_COUNT,
   AI_PARAM_NAMES,
   DEFAULT_PARAMS,
-  PARAM_SCALE,
+  DISCARD_BASE_PENALTY,
   paramsToVector,
-  scaledParamsFromNetworkOutput,
   vectorToParams,
 } from './ai/params'
 export type { AiParamName, AiScoringParams } from './ai/params'
@@ -42,7 +41,13 @@ export {
 } from './ai/parametricScorer'
 
 export { createSeededRandom } from './ai/random'
-export { createSeededGameState, getPlayerFitness, simulateAiGame } from './ai/simulator'
+export {
+  applyRoundOneStartingPlayer,
+  createSeededGameState,
+  getPlayerFitness,
+  resolveRoundOneStartingPlayerIndex,
+  simulateAiGame,
+} from './ai/simulator'
 export type {
   SimulateGameOptions,
   SimulateGamePlayerResult,
@@ -65,8 +70,23 @@ export {
 export type { SerializedScoringNetwork } from './ai/neuralModel'
 
 export { createNeuralAiAgent, createNeuralAiAgentFactory } from './ai/neuralAgent'
-export { runEvolution } from './ai/evolution'
-export type { EvolutionConfig, EvolutionGenerationStats, EvolutionResult } from './ai/evolution'
+export { runEvolution, loadEvolutionModelFromSerialized } from './ai/evolution'
+export type {
+  EvolutionConfig,
+  EvolutionGenerationStats,
+  EvolutionMode,
+  EvolutionResult,
+} from './ai/evolution'
+
+export {
+  DEFAULT_LEAGUE_CONFIG,
+  HallOfFame,
+  buildLeagueOpponentContext,
+  describeLeagueConfig,
+  mergeLeagueConfig,
+  pickLeagueOpponentFactory,
+} from './ai/league'
+export type { LeagueConfig, LeagueOpponentContext, LeagueOpponentKind } from './ai/league'
 
 export {
   createVsAiAgentFactory,

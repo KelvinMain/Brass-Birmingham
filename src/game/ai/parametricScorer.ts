@@ -1,14 +1,11 @@
 import type { GameState } from '../game'
 import type { AiAgent, AiCandidateAction } from '../aiActions'
-import { getLoanIncomeAfterReduction, PREFERRED_INCOME_TRACK } from './estimators'
-import {
-  dotFeaturesWithParams,
-  extractCandidateFeatures,
-  extractDiscardAdjustment,
-} from './features'
+import { getDiscardCardAdjustment } from './discardScoring'
+import { dotFeaturesWithParams, extractCandidateFeatures } from './features'
 import {
   AI_PARAM_NAMES,
   DEFAULT_PARAMS,
+  DISCARD_BASE_PENALTY,
   paramsToVector,
   type AiScoringParams,
 } from './params'
@@ -19,27 +16,17 @@ export function scoreCandidateWithParams(
   candidate: AiCandidateAction,
   params: AiScoringParams,
 ): number {
-  const paramVector = paramsToVector(params)
-  const features = extractCandidateFeatures(game, playerId, candidate)
-  let score = dotFeaturesWithParams(features, paramVector)
-
   if (candidate.kind === 'discard') {
     const player = game.players.find((currentPlayer) => currentPlayer.id === playerId)
     const card = player?.hand.find((handCard) => handCard.id === candidate.cardId)
-    score += extractDiscardAdjustment(card)
+
+    return DISCARD_BASE_PENALTY + getDiscardCardAdjustment(card)
   }
 
-  if (candidate.kind === 'loan') {
-    const player = game.players.find((currentPlayer) => currentPlayer.id === playerId)
-    const projectedIncome = player?.income ?? PREFERRED_INCOME_TRACK
-    const incomeAfter = getLoanIncomeAfterReduction(projectedIncome)
+  const paramVector = paramsToVector(params)
+  const features = extractCandidateFeatures(game, playerId, candidate)
 
-    if (incomeAfter === null) {
-      score -= 50
-    }
-  }
-
-  return score
+  return dotFeaturesWithParams(features, paramVector)
 }
 
 export function chooseHighestScoredCandidate(
