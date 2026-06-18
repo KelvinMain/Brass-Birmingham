@@ -3,6 +3,7 @@ import { createBoardState } from './board'
 import type { BoardState, IndustryTilePlacement } from './board'
 import { createDrawableStacks, getDeckForPlayerCount, HAND_LIMIT, shuffleDeck } from './deck'
 import type { DrawableStacks, GameCard } from './deck'
+import { applyEraScoring } from './eraScoring'
 
 export const playerColors = ['white', 'red', 'purple', 'yellow'] as const
 const MIN_INCOME_TRACK = 0
@@ -174,9 +175,11 @@ function dealRailEraCards(game: GameState, railDeck: StandardCard[]): GameState 
 
 function completeRound(game: GameState, options: PassTurnOptions): GameState {
   if (areStandardCardsAndHandsExhausted(game)) {
-    if (game.era === 'rail') {
+    const afterScoring = applyEraScoring(game, game.era)
+
+    if (afterScoring.era === 'rail') {
       return {
-        ...game,
+        ...afterScoring,
         status: 'ended',
         activePlayerIndex: 0,
         turnsTakenThisRound: 0,
@@ -188,9 +191,9 @@ function completeRound(game: GameState, options: PassTurnOptions): GameState {
 
     return dealRailEraCards(
       {
-        ...game,
-        players: orderPlayersForNextRound(applyRoundIncome(game.players)),
-        roundNumber: game.roundNumber + 1,
+        ...afterScoring,
+        players: orderPlayersForNextRound(applyRoundIncome(afterScoring.players)),
+        roundNumber: afterScoring.roundNumber + 1,
       },
       railDeck,
     )

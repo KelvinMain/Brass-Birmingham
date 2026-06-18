@@ -230,6 +230,438 @@ export function createRandomAiAgent(random = Math.random): AiAgent {
   }
 }
 
+const bricIndustryPriority: Partial<Record<Industry, number>> = {
+  brewery: 100,
+  coal: 70,
+  iron: 65,
+  cotton: 22,
+  manufacturer: 18,
+  pottery: 12,
+}
+
+const bricDevelopPriority: Partial<Record<Industry, number>> = {
+  brewery: 45,
+  coal: 32,
+  iron: 28,
+  cotton: 12,
+  manufacturer: 10,
+  pottery: 8,
+}
+
+const PREFERRED_INCOME_TRACK = 10
+
+function scoreIncomeTrackPreference(income: number): number {
+  return -Math.abs(getIncomeMoneyDelta(income)) * 4
+}
+
+function scoreIncomeTrackChange(before: number, after: number): number {
+  return scoreIncomeTrackPreference(after) - scoreIncomeTrackPreference(before)
+}
+
+function countAvailableIronCubes(board: BoardState): number {
+  return getUnflippedIndustryResourceSources(board, 'iron').reduce(
+    (total, source) => total + source.resourceIds.length,
+    0,
+  )
+}
+
+function estimateIronPurchaseCost(game: GameState, ironCount: number): number {
+  let cost = 0
+  let board = game.board
+  let remaining = Math.max(0, ironCount - countAvailableIronCubes(board))
+
+  for (let index = 0; index < remaining; index += 1) {
+    const marketSpace = getCheapestMarketResourcePlacement(board, 'iron')
+
+    if (marketSpace) {
+      cost += getMarketResourceCost('iron', marketSpace.space.marketIndex)
+      board = removeMarketResourceCube(board, marketSpace.resource.spaceId)
+      continue
+    }
+
+    cost += MARKET_GENERAL_SUPPLY_COST.iron
+  }
+
+  return cost
+}
+
+function estimateCoalPurchaseCost(game: GameState, coalCount: number, cityName: string): number {
+  let cost = 0
+  let board = game.board
+
+  for (let index = 0; index < coalCount; index += 1) {
+    const coalSource = getUnflippedIndustryResourceSources(board, 'coal').find(
+      (source) =>
+        source.resourceIds.length > 0 &&
+        areLocationsConnected(board, cityName, source.cityName),
+    )
+
+    if (coalSource) {
+      board = removeIndustryResourceCube(board, coalSource.spaceId, coalSource.resourceIds[0])
+      continue
+    }
+
+    if (!isConnectedToMarket(board, cityName)) {
+      return Number.POSITIVE_INFINITY
+    }
+
+    const marketSpace = getCheapestMarketResourcePlacement(board, 'coal')
+
+    if (marketSpace) {
+      cost += getMarketResourceCost('coal', marketSpace.space.marketIndex)
+      board = removeMarketResourceCube(board, marketSpace.resource.spaceId)
+      continue
+    }
+
+    cost += MARKET_GENERAL_SUPPLY_COST.coal
+  }
+
+  return cost
+}
+
+function estimateBuildMoneyCost(game: GameState, tileId: string, cityName: string): number {
+  const rule = getPlayerBoardIndustryTileRule(tileId)
+
+  if (!rule) {
+    return Number.POSITIVE_INFINITY
+  }
+
+  let cost = rule.buildCost.money
+  const resources = rule.buildCost.resources ?? {}
+
+  if (resources.coal) {
+    cost += estimateCoalPurchaseCost(game, resources.coal, cityName)
+  }
+
+  if (resources.iron) {
+    cost += estimateIronPurchaseCost(game, resources.iron)
+  }
+
+  return cost
+}
+
+function estimateNetworkMoneyCost(
+  game: GameState,
+  candidate: Extract<AiCandidateAction, { kind: 'network' }>,
+): number {
+  let cost = candidate.cost
+
+  for (const link of candidate.linkPlacements) {
+    if (link.coalLocationName) {
+      const coalCost = estimateCoalPurchaseCost(game, 1, link.coalLocationName)
+      cost += Number.isFinite(coalCost) ? coalCost : 8
+      continue
+    }
+
+    if (link.linkKind === 'rail') {
+      cost += 6
+    }
+  }
+
+  return cost
+}
+
+function estimatePlannedTileFlipLikelihood(
+  game: GameState,
+  playerId: string,
+  industry: Industry,
+  tileId: string,
+  cityName: string,
+): number {
+  if (industry === 'coal' || industry === 'iron') {
+    return isConnectedToMarket(game.board, cityName) ? 0.95 : 0.4
+  }
+
+  if (industry === 'brewery') {
+    const beerOnBoard = Object.values(game.board.industryResourcePlacements).reduce(
+      (total, resources) => total + resources.filter((resource) => resource.kind === 'beer').length,
+      0,
+    )
+
+    return beerOnBoard > 3 ? 0.45 : 0.62
+  }
+
+  const sellIndustry = getSellableIndustry(industry)
+
+  if (!sellIndustry) {
+    return 0
+  }
+
+  const rule = getPlayerBoardIndustryTileRule(tileId)
+  const merchants = getVisibleMerchants(game)
+
+  for (const merchant of merchants) {
+    const merchantLocation = getMerchantLocation(merchant.spaceId)
+
+    if (
+      !merchantLocation ||
+      !merchantAcceptsIndustry(merchant.kind, sellIndustry) ||
+      !areLocationsConnected(game.board, cityName, merchantLocation)
+    ) {
+      continue
+    }
+
+    const beerNeeded = rule?.sellBeer ?? 0
+
+    if (beerNeeded === 0) {
+      return 0.82
+    }
+
+    const merchantBeerSpaceId = getMerchantBeerSpaceId(merchant.spaceId)
+
+    if (game.board.beerResourcePlacements[merchantBeerSpaceId]) {
+      return 0.72
+    }
+
+    if (consumeBeer(game, playerId, beerNeeded, cityName)) {
+      return 0.65
+    }
+
+    return 0.28
+  }
+
+  return 0.08
+}
+
+function finiteMoneyCost(cost: number): number {
+  return Number.isFinite(cost) ? cost : 120
+}
+
+function scoreNetworkLinkPlacement(spaceId: string): number {
+  const space = linkSpaces.find((linkSpace) => linkSpace.id === spaceId)
+
+  if (!space) {
+    return 0
+  }
+
+  let score = 0
+
+  if ([space.from, space.to].some((city) => city.startsWith('Brewery'))) {
+    score += 28
+  }
+
+  if ([space.from, space.to].includes('Birmingham')) {
+    score += 18
+  }
+
+  if ([space.from, space.to].some((city) => marketLocations.includes(city as (typeof marketLocations)[number]))) {
+    score += 12
+  }
+
+  return score
+}
+
+function scoreDiscardCard(card: GameCard | undefined): number {
+  if (!card) {
+    return 0
+  }
+
+  if (card.kind === 'wild-location' || card.kind === 'wild-industry') {
+    return -400
+  }
+
+  if (card.kind === 'industry') {
+    const keepsBricOption = card.industries.some(
+      (industry) => industry === 'brewery' || industry === 'coal' || industry === 'iron',
+    )
+
+    return keepsBricOption ? -250 : -80
+  }
+
+  return 40
+}
+
+function scoreAiCandidateAction(
+  game: GameState,
+  playerId: string,
+  candidate: AiCandidateAction,
+): number {
+  const player = game.players.find((currentPlayer) => currentPlayer.id === playerId)
+  let projectedIncome = player?.income ?? PREFERRED_INCOME_TRACK
+
+  switch (candidate.kind) {
+    case 'build-industry': {
+      const rule = getPlayerBoardIndustryTileRule(candidate.playerBoardTileId)
+      const tile = playerBoardIndustryTiles.find(
+        (boardTile) => boardTile.id === candidate.playerBoardTileId,
+      )
+      const flipLikelihood = estimatePlannedTileFlipLikelihood(
+        game,
+        playerId,
+        candidate.industry,
+        candidate.playerBoardTileId,
+        candidate.cityName,
+      )
+      let score =
+        (bricIndustryPriority[candidate.industry] ?? 0) +
+        (rule?.victoryPoints ?? 0) * 4 * flipLikelihood +
+        (rule?.incomeIncrease ?? 0) * 2 * flipLikelihood
+
+      if (game.era === 'canal') {
+        if (candidate.industry === 'brewery') {
+          score += 35
+        }
+
+        if (candidate.industry === 'coal' || candidate.industry === 'iron') {
+          score += 20
+        }
+
+        if (tile?.level === 1) {
+          score += flipLikelihood >= 0.55 ? 25 : -300 * (1 - flipLikelihood)
+        }
+      }
+
+      if (game.era === 'rail' && tile && tile.level >= 2) {
+        score += tile.level * 6 * Math.max(0.45, flipLikelihood)
+      }
+
+      if (getBuildSpacePriority(candidate.spaceId, candidate.industry) === 0) {
+        score += 8
+      }
+
+      score -= finiteMoneyCost(estimateBuildMoneyCost(game, candidate.playerBoardTileId, candidate.cityName)) * 1.8
+
+      if (rule?.incomeIncrease) {
+        score += scoreIncomeTrackChange(
+          projectedIncome,
+          projectedIncome + Math.round(rule.incomeIncrease * flipLikelihood),
+        )
+      }
+
+      return score
+    }
+    case 'network': {
+      let score =
+        candidate.linkPlacements.length === 2
+          ? 155
+          : game.era === 'rail'
+            ? 62
+            : 38
+
+      for (const link of candidate.linkPlacements) {
+        score += scoreNetworkLinkPlacement(link.spaceId)
+      }
+
+      score -= finiteMoneyCost(estimateNetworkMoneyCost(game, candidate)) * 1.5
+
+      return score
+    }
+    case 'develop': {
+      const ironCost = finiteMoneyCost(estimateIronPurchaseCost(game, candidate.tiles.length))
+      let score =
+        candidate.tiles.length === 1
+          ? -280 +
+            candidate.tiles.reduce(
+              (total, developTile) =>
+                total + (bricDevelopPriority[developTile.industry] ?? 0) + developTile.level,
+              0,
+            )
+          : 90 +
+            candidate.tiles.reduce(
+              (total, developTile) =>
+                total + (bricDevelopPriority[developTile.industry] ?? 0) + developTile.level * 3,
+              0,
+            )
+
+      score -= ironCost * 2.5
+
+      return score
+    }
+    case 'sell': {
+      let score = candidate.sales.length >= 2 ? 220 : 0
+
+      for (const sale of candidate.sales) {
+        const rule = getPlayerBoardIndustryTileRule(sale.tileId)
+        score += (rule?.victoryPoints ?? 0) * 6 + (rule?.incomeIncrease ?? 0) * 4
+
+        if (sale.merchantBeerBonus) {
+          score += 18
+        }
+
+        score += scoreIncomeTrackChange(projectedIncome, projectedIncome + sale.incomeIncrease)
+        projectedIncome += sale.incomeIncrease
+      }
+
+      return score
+    }
+    case 'loan': {
+      const money = getPlayerMoney(game, playerId)
+      let score = 0
+
+      if (projectedIncome > 20) {
+        score -= 120
+      } else if (projectedIncome > 15) {
+        score -= 45
+      }
+
+      if (money < 8) {
+        score += 70
+      } else if (money < 15) {
+        score += 45
+      } else if (game.era === 'rail' && money < 22) {
+        score += 30
+      } else {
+        score -= 15
+      }
+
+      const incomeAfter = getLoanIncomeAfterReduction(projectedIncome)
+
+      if (incomeAfter !== null) {
+        score += scoreIncomeTrackChange(projectedIncome, incomeAfter)
+      } else {
+        score -= 50
+      }
+
+      return score
+    }
+    case 'scout':
+      return -35
+    case 'discard': {
+      const card = player?.hand.find((handCard) => handCard.id === candidate.cardId)
+
+      return -10_000 + scoreDiscardCard(card)
+    }
+    default:
+      return 0
+  }
+}
+
+function chooseHighestScoredCandidate(
+  candidates: AiCandidateAction[],
+  scoreCandidate: (candidate: AiCandidateAction) => number,
+  random: () => number,
+): AiCandidateAction | undefined {
+  if (candidates.length === 0) {
+    return undefined
+  }
+
+  const scoredCandidates = candidates.map((candidate) => ({
+    candidate,
+    score: scoreCandidate(candidate),
+  }))
+  const bestScore = Math.max(...scoredCandidates.map((entry) => entry.score))
+  const topCandidates = scoredCandidates
+    .filter((entry) => entry.score === bestScore)
+    .map((entry) => entry.candidate)
+  const chosenIndex = Math.floor(random() * topCandidates.length)
+
+  return topCandidates[Math.min(chosenIndex, topCandidates.length - 1)]
+}
+
+export function createStrategicAiAgent(
+  game: GameState,
+  playerId: string,
+  random = Math.random,
+): AiAgent {
+  const scoreCandidate = (candidate: AiCandidateAction) =>
+    scoreAiCandidateAction(game, playerId, candidate)
+
+  return {
+    chooseAction: (candidates) =>
+      chooseHighestScoredCandidate(candidates, scoreCandidate, random),
+  }
+}
+
 function capitalize(value: string): string {
   return `${value.charAt(0).toUpperCase()}${value.slice(1)}`
 }
@@ -429,15 +861,18 @@ function getLowestDevelopableTile(
     counts[tileId] = (counts[tileId] ?? 0) + 1
     return counts
   }, {})
-  const tile = playerBoardIndustryTiles.find((currentTile) => {
-    const remainingCount =
-      getRemainingPlayerBoardTileCount(game, playerId, currentTile.id) -
-      (selectedCounts[currentTile.id] ?? 0)
+  const effectiveRemaining = { ...getRemainingTileCounts(game, playerId) }
 
+  for (const [tileId, count] of Object.entries(selectedCounts)) {
+    effectiveRemaining[tileId] = (effectiveRemaining[tileId] ?? 0) - count
+  }
+
+  const tile = playerBoardIndustryTiles.find((currentTile) => {
     return (
       currentTile.industry === industry &&
       isPlayerBoardTileDevelopable(currentTile.id) &&
-      remainingCount > 0
+      (effectiveRemaining[currentTile.id] ?? 0) > 0 &&
+      isPlayerBoardIndustryTileUsable(currentTile.id, effectiveRemaining)
     )
   })
 
@@ -2068,10 +2503,10 @@ export function runAiTurn(game: GameState, random = Math.random): AiTurnResult {
   let currentGame = game
   const logEntries: AiLogEntry[] = []
   const actionCount = getActionsPerTurn(currentGame)
-  const agent = createRandomAiAgent(random)
 
   for (let actionIndex = 0; actionIndex < actionCount; actionIndex += 1) {
     const candidates = [...getAiCandidateActions(currentGame, activePlayer.id)]
+    const agent = createStrategicAiAgent(currentGame, activePlayer.id, random)
     let execution: AiActionExecution | null = null
     let nextGame: GameState | null = null
 
@@ -2146,7 +2581,8 @@ export function runAiTurn(game: GameState, random = Math.random): AiTurnResult {
       break
     }
 
-    const discardAction = agent.chooseAction(discardCandidates)
+    const discardAgent = createStrategicAiAgent(readyToPass, activePlayer.id, random)
+    const discardAction = discardAgent.chooseAction(discardCandidates)
 
     if (!discardAction) {
       break

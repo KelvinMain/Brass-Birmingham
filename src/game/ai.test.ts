@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   createRandomAiAgent,
+  createStrategicAiAgent,
   executeAiCandidateAction,
   getAiCandidateActions,
   getLoanIncomeAfterReduction,
@@ -303,6 +304,274 @@ describe('getAiCandidateActions', () => {
     expect(networkActions.some((action) => action.linkPlacements[0].spaceId === 'birmingham-coventry')).toBe(true)
     expect(networkActions.some((action) => action.linkPlacements[0].spaceId === 'cannock-walsall')).toBe(false)
     expect(unaffordableNetworkActions).toEqual([])
+  })
+
+  it('does not offer pottery develop actions until pottery one has been placed', () => {
+    const baseGame = createGameState(2)
+    const playerId = baseGame.players[1].id
+    const potteryCard = baseGame.stacks.standard.find(
+      (card) => card.kind === 'industry' && card.industries.includes('pottery'),
+    )
+
+    expect(potteryCard).toBeDefined()
+
+    const game = {
+      ...baseGame,
+      activePlayerIndex: 1,
+      players: baseGame.players.map((player, index) =>
+        index === 1 ? { ...player, hand: [potteryCard!] } : player,
+      ),
+    }
+
+    const developActions = getAiCandidateActions(game, playerId).filter(
+      (action) => action.kind === 'develop',
+    )
+
+    expect(developActions).toEqual([])
+  })
+})
+
+describe('createStrategicAiAgent', () => {
+  it('prefers BRIC industry builds over cotton when both are legal', () => {
+    const game = createGameState(2)
+    const playerId = game.players[1].id
+    const card = game.players[1].hand[0]
+    const agent = createStrategicAiAgent(game, playerId, () => 0)
+    const candidates: AiCandidateAction[] = [
+      {
+        kind: 'build-industry',
+        cardId: card.id,
+        spaceId: 'worcester-1',
+        playerBoardTileId: 'cotton-1',
+        industry: 'cotton',
+        cityName: 'Worcester',
+        description: 'Built cotton in Worcester (level 1)',
+      },
+      {
+        kind: 'build-industry',
+        cardId: card.id,
+        spaceId: 'brewery-1',
+        playerBoardTileId: 'brewery-1',
+        industry: 'brewery',
+        cityName: 'Brewery-1',
+        description: 'Built brewery in Brewery-1 (level 1)',
+      },
+    ]
+
+    expect(agent.chooseAction(candidates)?.kind).toBe('build-industry')
+    expect(
+      (agent.chooseAction(candidates) as Extract<AiCandidateAction, { kind: 'build-industry' }>).industry,
+    ).toBe('brewery')
+  })
+
+  it('prefers developing two tiles over developing one', () => {
+    const game = createGameState(2)
+    const playerId = game.players[1].id
+    const card = game.players[1].hand[0]
+    const agent = createStrategicAiAgent(game, playerId, () => 0)
+    const candidates: AiCandidateAction[] = [
+      {
+        kind: 'develop',
+        cardId: card.id,
+        tiles: [{ playerBoardTileId: 'brewery-1', industry: 'brewery', level: 1 }],
+        description: 'Developed Brewery (level 1)',
+      },
+      {
+        kind: 'develop',
+        cardId: card.id,
+        tiles: [
+          { playerBoardTileId: 'brewery-1', industry: 'brewery', level: 1 },
+          { playerBoardTileId: 'coal-1', industry: 'coal', level: 1 },
+        ],
+        description: 'Developed Brewery (level 1) and Coal (level 1)',
+      },
+    ]
+
+    expect(agent.chooseAction(candidates)?.kind).toBe('develop')
+    expect(
+      (agent.chooseAction(candidates) as Extract<AiCandidateAction, { kind: 'develop' }>).tiles,
+    ).toHaveLength(2)
+  })
+
+  it('prefers selling two goods in one action over selling one', () => {
+    const game = createGameState(2)
+    const playerId = game.players[1].id
+    const card = game.players[1].hand[0]
+    const agent = createStrategicAiAgent(game, playerId, () => 0)
+    const singleSale = {
+      beerCount: 1,
+      incomeIncrease: 5,
+      industry: 'cotton' as const,
+      merchantLabel: 'merchant 1',
+      merchantSpaceId: 'merchant-tile-1',
+      spaceId: 'worcester-1',
+      tileId: 'cotton-1',
+    }
+    const candidates: AiCandidateAction[] = [
+      {
+        kind: 'sell',
+        cardId: card.id,
+        sales: [singleSale],
+        description: 'Sold cotton in Worcester to merchant 1',
+      },
+      {
+        kind: 'sell',
+        cardId: card.id,
+        sales: [
+          singleSale,
+          {
+            ...singleSale,
+            spaceId: 'coventry-1',
+            tileId: 'cotton-2',
+          },
+        ],
+        description: 'Sold cotton in Worcester and Coventry to merchant 1',
+      },
+    ]
+
+    expect(agent.chooseAction(candidates)?.kind).toBe('sell')
+    expect(
+      (agent.chooseAction(candidates) as Extract<AiCandidateAction, { kind: 'sell' }>).sales,
+    ).toHaveLength(2)
+  })
+
+  it('prefers double-rail network actions over single-rail network actions', () => {
+    const baseGame = createGameState(2)
+    const playerId = baseGame.players[1].id
+    const card = baseGame.players[1].hand[0]
+    const game = {
+      ...baseGame,
+      era: 'rail' as const,
+      roundNumber: 2,
+      board: placeIndustryResourceCube(
+        placeIndustryTile(
+          placeLinkTile(
+            placeLinkTile(baseGame.board, 'birmingham-coventry', {
+              id: 'network-link',
+              kind: 'rail',
+              ownerId: playerId,
+            }),
+            'birmingham-oxford',
+            {
+              id: 'market-link',
+              kind: 'rail',
+              ownerId: playerId,
+            },
+          ),
+          'birmingham-3',
+          {
+            id: 'coal-mine',
+            industry: 'coal',
+            ownerId: playerId,
+            tileId: 'coal-1',
+          },
+        ),
+        'birmingham-3',
+        { id: 'coal-cube', kind: 'coal', spaceId: 'birmingham-3' },
+      ),
+      players: baseGame.players.map((player, index) =>
+        index === 1 ? { ...player, hand: [card], money: 40 } : player,
+      ),
+    }
+    const agent = createStrategicAiAgent(game, playerId, () => 0)
+    const candidates: AiCandidateAction[] = [
+      {
+        kind: 'network',
+        cardId: card.id,
+        cost: 5,
+        linkPlacements: [
+          {
+            linkKind: 'rail',
+            routeLabel: 'Birmingham-Oxford',
+            spaceId: 'birmingham-oxford',
+            coalLocationName: 'Birmingham',
+          },
+        ],
+        description: 'Networked Birmingham-Oxford for 5 pounds',
+      },
+      {
+        kind: 'network',
+        cardId: card.id,
+        cost: 15,
+        linkPlacements: [
+          {
+            linkKind: 'rail',
+            routeLabel: 'Birmingham-Oxford',
+            spaceId: 'birmingham-oxford',
+            coalLocationName: 'Birmingham',
+          },
+          {
+            linkKind: 'rail',
+            routeLabel: 'Birmingham-Coventry',
+            spaceId: 'birmingham-coventry',
+            coalLocationName: 'Birmingham',
+          },
+        ],
+        description: 'Networked Birmingham-Oxford and Birmingham-Coventry for 15 pounds',
+      },
+    ]
+
+    expect(agent.chooseAction(candidates)?.kind).toBe('network')
+    expect(
+      (agent.chooseAction(candidates) as Extract<AiCandidateAction, { kind: 'network' }>).linkPlacements,
+    ).toHaveLength(2)
+  })
+
+  it('prefers any meaningful action over discarding to skip a round', () => {
+    const game = createGameState(2)
+    const playerId = game.players[1].id
+    const card = game.players[1].hand[0]
+    const incomeAfter = getLoanIncomeAfterReduction(game.players[1].income)
+    const agent = createStrategicAiAgent(game, playerId, () => 0)
+    const candidates: AiCandidateAction[] = [
+      {
+        kind: 'discard',
+        cardId: card.id,
+        description: 'Discarded card',
+      },
+      {
+        kind: 'loan',
+        cardId: card.id,
+        incomeBefore: game.players[1].income,
+        incomeAfter: incomeAfter ?? 0,
+        description: 'Took a loan',
+      },
+    ]
+
+    expect(agent.chooseAction(candidates)?.kind).toBe('loan')
+  })
+
+  it('discourages loans when income is already high on the tracker', () => {
+    const baseGame = createGameState(2)
+    const game = {
+      ...baseGame,
+      players: baseGame.players.map((player, index) =>
+        index === 1 ? { ...player, income: 24, money: 30 } : player,
+      ),
+    }
+    const playerId = game.players[1].id
+    const card = game.players[1].hand[0]
+    const agent = createStrategicAiAgent(game, playerId, () => 0)
+    const candidates: AiCandidateAction[] = [
+      {
+        kind: 'loan',
+        cardId: card.id,
+        incomeBefore: 24,
+        incomeAfter: getLoanIncomeAfterReduction(24) ?? 0,
+        description: 'Took a loan',
+      },
+      {
+        kind: 'develop',
+        cardId: card.id,
+        tiles: [
+          { playerBoardTileId: 'brewery-1', industry: 'brewery', level: 1 },
+          { playerBoardTileId: 'coal-1', industry: 'coal', level: 1 },
+        ],
+        description: 'Developed Brewery (level 1) and Coal (level 1)',
+      },
+    ]
+
+    expect(agent.chooseAction(candidates)?.kind).toBe('develop')
   })
 })
 

@@ -1,5 +1,6 @@
 export {
   createRandomAiAgent,
+  createStrategicAiAgent,
   executeAiCandidateAction,
   getAiCandidateActions,
   runAiTurn,
