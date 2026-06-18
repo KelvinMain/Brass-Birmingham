@@ -13,7 +13,22 @@ import {
   placeIndustryTile,
   placeLinkTile,
 } from './board'
+import type { BoardState } from './board'
 import { createGameState, discardCardFromPlayerHand, getActionsPerTurn, getRequiredEndTurnHandSize, passTurn } from './game'
+
+function connectCannockToMarket(board: BoardState, ownerId: string): BoardState {
+  const link = { kind: 'canal' as const, ownerId }
+
+  return placeLinkTile(
+    placeLinkTile(
+      placeLinkTile(board, 'cannock-walsall', { id: 'cannock-walsall-link', ...link }),
+      'walsall-birmingham',
+      { id: 'walsall-birmingham-link', ...link },
+    ),
+    'birmingham-oxford',
+    { id: 'birmingham-oxford-link', ...link },
+  )
+}
 
 describe('getActionsPerTurn', () => {
   it('requires one action during canal round 1', () => {
@@ -426,7 +441,7 @@ describe('executeAiCandidateAction', () => {
     expect(result.game.developedIndustries.map((tile) => tile.tileId)).toEqual(['coal-1', 'coal-2'])
     expect(result.game.board.industryResourcePlacements['birmingham-3']).toEqual([])
     expect(result.game.board.marketResourcePlacements['iron-market-3']).toBeUndefined()
-    expect(result.game.players[1].money).toBe(16)
+    expect(result.game.players[1].money).toBe(15)
     expect(result.description).toBe('Developed Coal (level 1) and Coal (level 2), consumed 1 iron from iron mine in Birmingham and bought 1 from the market')
   })
 
@@ -460,7 +475,7 @@ describe('executeAiCandidateAction', () => {
 
     expect(result.game.developedIndustries.map((tile) => tile.tileId)).toEqual(['coal-1'])
     expect(result.game.board.marketResourcePlacements['iron-market-3']).toBeUndefined()
-    expect(result.game.players[1].money).toBe(16)
+    expect(result.game.players[1].money).toBe(15)
     expect(result.description).toBe('Developed Coal (level 1), bought 1 iron from the market')
   })
 
@@ -648,6 +663,85 @@ describe('executeAiCandidateAction', () => {
     expect(result.game.board.marketResourcePlacements['iron-market-2']).toBeDefined()
     expect(result.game.board.industryResourcePlacements['birmingham-3']).toHaveLength(2)
     expect(result.game.board.industryPlacements['birmingham-3']).not.toMatchObject({ flipped: true })
+  })
+
+  it('sells coal from a connected mine into the highest empty market slots until the market is full', () => {
+    const baseGame = createGameState(2)
+    const playerId = baseGame.players[1].id
+    const card = baseGame.players[1].hand[0]
+    const marketPlacements = { ...baseGame.board.marketResourcePlacements }
+
+    delete marketPlacements['coal-market-1']
+    delete marketPlacements['coal-market-2']
+    delete marketPlacements['coal-market-3']
+
+    const game = {
+      ...baseGame,
+      activePlayerIndex: 1,
+      board: {
+        ...connectCannockToMarket(baseGame.board, playerId),
+        marketResourcePlacements: marketPlacements,
+      },
+      players: baseGame.players.map((player, index) =>
+        index === 1 ? { ...player, hand: [card], money: 17 } : player,
+      ),
+    }
+    const action: AiCandidateAction = {
+      kind: 'build-industry',
+      cardId: card.id,
+      spaceId: 'cannock-2',
+      playerBoardTileId: 'coal-1',
+      industry: 'coal',
+      cityName: 'Cannock',
+      description: 'Built coal in Cannock (level 1)',
+    }
+
+    const result = executeAiCandidateAction(game, playerId, action)
+
+    expect(result.game.board.industryResourcePlacements['cannock-2']).toHaveLength(0)
+    expect(result.game.board.marketResourcePlacements['coal-market-3']).toBeDefined()
+    expect(result.game.board.marketResourcePlacements['coal-market-2']).toBeDefined()
+    expect(result.game.board.marketResourcePlacements['coal-market-1']).toBeUndefined()
+  })
+
+  it('leaves coal on a connected mine when the market has no empty spaces', () => {
+    const baseGame = createGameState(2)
+    const playerId = baseGame.players[1].id
+    const card = baseGame.players[1].hand[0]
+    const marketPlacements = {
+      ...baseGame.board.marketResourcePlacements,
+      'coal-market-2': {
+        id: 'coal-market-2-cube',
+        kind: 'coal' as const,
+        spaceId: 'coal-market-2',
+      },
+    }
+
+    const game = {
+      ...baseGame,
+      activePlayerIndex: 1,
+      board: {
+        ...connectCannockToMarket(baseGame.board, playerId),
+        marketResourcePlacements: marketPlacements,
+      },
+      players: baseGame.players.map((player, index) =>
+        index === 1 ? { ...player, hand: [card], money: 17 } : player,
+      ),
+    }
+    const action: AiCandidateAction = {
+      kind: 'build-industry',
+      cardId: card.id,
+      spaceId: 'cannock-2',
+      playerBoardTileId: 'coal-1',
+      industry: 'coal',
+      cityName: 'Cannock',
+      description: 'Built coal in Cannock (level 1)',
+    }
+
+    const result = executeAiCandidateAction(game, playerId, action)
+
+    expect(result.game.board.industryResourcePlacements['cannock-2']).toHaveLength(2)
+    expect(result.game.board.marketResourcePlacements).toEqual(marketPlacements)
   })
 
   it('flips a resource industry and advances its owner income when the last cube is consumed', () => {

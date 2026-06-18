@@ -43,6 +43,7 @@ import {
 import type { GameState, PlayerColor } from './game/game'
 import type { LocalGameMode } from './game/gameMode'
 import { HUMAN_PLAYER_ID, isAiPlayerId } from './game/gameMode'
+import { getMarketResourceCost } from './game/market'
 import { clientDebugLog } from './debug/clientLog'
 import { summarizeGameAction, summarizeGameState } from './debug/gameContext'
 import {
@@ -2175,7 +2176,7 @@ function App() {
                     left: `${space.x}%`,
                     top: `${space.y}%`,
                   }}
-                  title={`${space.id}: ${space.label}`}
+                  title={`${space.id}: £${getMarketResourceCost(space.kind, space.marketIndex)}`}
                 >
                   {placement ? (
                     <button

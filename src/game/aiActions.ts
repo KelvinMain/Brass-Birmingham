@@ -6,8 +6,6 @@ import {
   industrySpaces,
   linkSpaces,
   marketLocations,
-  marketResourceSpaces,
-  moveResourceCubeToMarket,
   placeIndustryTile,
   removeBeerResourceCube,
   removeIndustryResourceCube,
@@ -17,7 +15,7 @@ import type {
   BoardState,
   IndustryTilePlacement,
   LinkTilePlacement,
-  MarketResourceSpace,
+  MarketResourcePlacement,
   ResourceCubeKind,
 } from './board'
 import type { GameCard } from './deck'
@@ -198,10 +196,13 @@ const merchantBeerBonusBySpaceId = {
 const boardCities = [...new Set(industrySpaces.map((space) => space.city))].filter(
   (city) => !city.startsWith('Brewery'),
 )
-const marketResourcePurchaseCostByKind = {
-  coal: (marketIndex: number) => Math.max(1, Math.ceil(marketIndex / 2)),
-  iron: (marketIndex: number) => Math.max(1, Math.ceil((marketIndex - 2) / 2)),
-} as const
+import {
+  getMarketResourceCost,
+  getCheapestMarketResourcePlacement,
+  getMostExpensiveEmptyMarketSpace,
+  MARKET_GENERAL_SUPPLY_COST,
+  sellResourceCubeToHighestEmptyMarket,
+} from './market'
 const buildResourceCountByTileId: Partial<Record<string, number>> = {
   'iron-1': 4,
   'iron-2': 4,
@@ -919,19 +920,10 @@ function buyFromMarket(
   game: GameState
   bought: number
 } | null {
-  const marketSpace = Object.values(game.board.marketResourcePlacements)
-    .filter((resource) => resource.kind === resourceKind)
-    .map((resource) => ({
-      resource,
-      space: marketResourceSpaces.find((space) => space.id === resource.spaceId),
-    }))
-    .filter((entry): entry is { resource: { id: string; kind: ResourceCubeKind; spaceId: string }; space: MarketResourceSpace } =>
-      Boolean(entry.space),
-    )
-    .sort((left, right) => left.space.marketIndex - right.space.marketIndex)[0]
+  const marketSpace = getCheapestMarketResourcePlacement(game.board, resourceKind)
 
   if (!marketSpace) {
-    const generalSupplyCost = resourceKind === 'coal' ? 8 : 6
+    const generalSupplyCost = MARKET_GENERAL_SUPPLY_COST[resourceKind]
 
     if (getPlayerMoney(game, playerId) < generalSupplyCost) {
       return null
@@ -943,7 +935,7 @@ function buyFromMarket(
     }
   }
 
-  const cost = marketResourcePurchaseCostByKind[resourceKind](marketSpace.space.marketIndex)
+  const cost = getMarketResourceCost(resourceKind, marketSpace.space.marketIndex)
 
   if (getPlayerMoney(game, playerId) < cost) {
     return null
@@ -1623,17 +1615,34 @@ function applyScout(game: GameState, playerId: string, cardIds: string[]): GameS
   }
 }
 
-function getMarketRevenue(resourceKind: Extract<ResourceCubeKind, 'coal' | 'iron'>, marketIndex: number): number {
-  return marketResourcePurchaseCostByKind[resourceKind](marketIndex)
-}
-
-function getAvailableMarketSpaces(
+function sellIndustryResourceToHighestEmptyMarket(
   game: GameState,
+  playerId: string,
+  spaceId: string,
   resourceKind: Extract<ResourceCubeKind, 'coal' | 'iron'>,
-): MarketResourceSpace[] {
-  return marketResourceSpaces
-    .filter((space) => space.kind === resourceKind && !game.board.marketResourcePlacements[space.id])
-    .sort((left, right) => left.marketIndex - right.marketIndex)
+): GameState | null {
+  const resource = game.board.industryResourcePlacements[spaceId]?.[0]
+
+  if (!resource) {
+    return null
+  }
+
+  const sale = sellResourceCubeToHighestEmptyMarket(game.board, resourceKind, resource, {
+    industrySpaceId: spaceId,
+  })
+
+  if (!sale) {
+    return null
+  }
+
+  return updatePlayerMoney(
+    {
+      ...game,
+      board: sale.board,
+    },
+    playerId,
+    sale.revenue,
+  )
 }
 
 function autoMoveProducedResourceToMarket(
@@ -1645,29 +1654,18 @@ function autoMoveProducedResourceToMarket(
   let currentGame = game
 
   while ((currentGame.board.industryResourcePlacements[spaceId] ?? []).length > 0) {
-    const marketSpace = getAvailableMarketSpaces(currentGame, resourceKind)[0]
-    const resource = currentGame.board.industryResourcePlacements[spaceId]?.[0]
-
-    if (!marketSpace || !resource) {
-      break
-    }
-
-    const movedBoard = moveResourceCubeToMarket(currentGame.board, marketSpace.id, resource, {
-      industrySpaceId: spaceId,
-    })
-
-    if (movedBoard === currentGame.board) {
-      break
-    }
-
-    currentGame = updatePlayerMoney(
-      {
-        ...currentGame,
-        board: movedBoard,
-      },
+    const nextGame = sellIndustryResourceToHighestEmptyMarket(
+      currentGame,
       playerId,
-      getMarketRevenue(resourceKind, marketSpace.marketIndex),
+      spaceId,
+      resourceKind,
     )
+
+    if (!nextGame) {
+      break
+    }
+
+    currentGame = nextGame
   }
 
   return flipIndustryIfEmpty(currentGame, spaceId)

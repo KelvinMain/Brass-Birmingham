@@ -120,6 +120,10 @@ const industryResourceRules: Partial<Record<Industry, { kind: ResourceCubeKind; 
   iron: { kind: 'iron', capacity: 6 },
 }
 
+export function getIndustryTileResourceCapacity(industry: Industry): number {
+  return industryResourceRules[industry]?.capacity ?? 0
+}
+
 export const marketLocations = [
   'Warrington',
   'Nottingham',
