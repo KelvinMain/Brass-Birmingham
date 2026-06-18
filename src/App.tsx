@@ -33,7 +33,8 @@ import {
 import type { DrawableStacks, GameCard } from './game/deck'
 import { applyGameAction } from './game/actions'
 import type { GameAction } from './game/actions'
-import { runSimpleAiTurn } from './game/ai'
+import { runAiTurn } from './game/ai'
+import type { AiLogEntry } from './game/ai'
 import {
   createGameState,
   getRequiredEndTurnHandSize,
@@ -41,7 +42,9 @@ import {
 } from './game/game'
 import type { GameState, PlayerColor } from './game/game'
 import type { LocalGameMode } from './game/gameMode'
-import { HUMAN_PLAYER_INDEX, isAiPlayerIndex } from './game/gameMode'
+import { HUMAN_PLAYER_ID, isAiPlayerId } from './game/gameMode'
+import { clientDebugLog } from './debug/clientLog'
+import { summarizeGameAction, summarizeGameState } from './debug/gameContext'
 import {
   clearOfflineSave,
   getOfflineSaveSummary,
@@ -262,7 +265,7 @@ function createVsAiGameState(playerCount: PlayerCount): GameState {
   return {
     ...game,
     players: game.players.map((player, index) =>
-      index === HUMAN_PLAYER_INDEX
+      player.id === HUMAN_PLAYER_ID
         ? { ...player, name: 'You' }
         : { ...player, name: `AI ${index + 1}` },
     ),
@@ -415,7 +418,12 @@ function App() {
   const [gameMode, setGameMode] = useState<LocalGameMode | null>(null)
   const [turnStartSnapshot, setTurnStartSnapshot] = useState<GameState | null>(null)
   const [isAiThinking, setIsAiThinking] = useState(false)
+  const [aiLog, setAiLog] = useState<AiLogEntry[]>([])
   const aiTurnKeyRef = useRef<string | null>(null)
+  const aiTurnExecutedRef = useRef<string | null>(null)
+  const gameRef = useRef<GameState | null>(null)
+  const gameModeRef = useRef<LocalGameMode | null>(gameMode)
+  const [aiTurnRetry, setAiTurnRetry] = useState(0)
   const [offlineSaveSummary, setOfflineSaveSummary] = useState<OfflineSaveSummary | null>(() =>
     getOfflineSaveSummary(),
   )
@@ -452,7 +460,7 @@ function App() {
   const requiredEndTurnHandSize = game ? getRequiredEndTurnHandSize(game) : HAND_LIMIT
   const isOnlineGame = Boolean(onlineRoom)
   const isVsAiGame = gameMode === 'vsAi' && !isOnlineGame
-  const isHumanTurn = !isVsAiGame || activePlayerIndex === HUMAN_PLAYER_INDEX
+  const isHumanTurn = !isVsAiGame || turnPlayer?.id === HUMAN_PLAYER_ID
   const canUseActivePlayerControls =
     Boolean(activePlayer) &&
     !isGameEnded &&
@@ -543,45 +551,126 @@ function App() {
   }, [game, gameMode, onlineRoom, turnStartSnapshot])
 
   useEffect(() => {
+    gameModeRef.current = gameMode
+  }, [gameMode])
+
+  useEffect(() => {
+    gameRef.current = game
+  }, [game])
+
+  useEffect(() => {
     if (!game || !isVsAiGame || game.status !== 'playing') {
       aiTurnKeyRef.current = null
+      aiTurnExecutedRef.current = null
       setIsAiThinking(false)
       return
     }
 
-    if (!isAiPlayerIndex(game.activePlayerIndex, gameMode)) {
+    const activePlayerId = game.players[game.activePlayerIndex]?.id
+
+    if (!isAiPlayerId(activePlayerId, gameMode)) {
       aiTurnKeyRef.current = null
+      aiTurnExecutedRef.current = null
       setIsAiThinking(false)
       return
     }
 
-    const turnKey = `${game.roundNumber}-${game.turnsTakenThisRound}-${game.activePlayerIndex}`
+    const turnKey = `${game.roundNumber}-${game.turnsTakenThisRound}-${activePlayerId}`
 
     if (aiTurnKeyRef.current === turnKey) {
+      clientDebugLog('ai-turn', 'Skipped duplicate AI turn schedule', {
+        turnKey,
+        ...summarizeGameState(game),
+      })
       return
     }
 
     aiTurnKeyRef.current = turnKey
     setIsAiThinking(true)
+    clientDebugLog('ai-turn', 'Scheduled AI turn', {
+      turnKey,
+      retryCount: aiTurnRetry,
+      ...summarizeGameState(game),
+    })
 
     const timeoutId = window.setTimeout(() => {
-      setGame((currentGame) => {
-        if (
-          !currentGame ||
-          currentGame.status !== 'playing' ||
-          !isAiPlayerIndex(currentGame.activePlayerIndex, gameMode)
-        ) {
-          return currentGame
-        }
+      if (aiTurnExecutedRef.current === turnKey) {
+        clientDebugLog('ai-turn', 'Skipped duplicate AI turn execution', { turnKey })
+        setIsAiThinking(false)
+        return
+      }
 
-        const nextGame = runSimpleAiTurn(currentGame)
+      const currentGame = gameRef.current
+      const currentGameMode = gameModeRef.current
 
-        if (nextGame !== currentGame) {
-          setTurnStartSnapshot(nextGame.status === 'playing' ? nextGame : null)
-        }
+      if (
+        !currentGame ||
+        currentGame.status !== 'playing' ||
+        !isAiPlayerId(currentGame.players[currentGame.activePlayerIndex]?.id, currentGameMode)
+      ) {
+        aiTurnKeyRef.current = null
+        clientDebugLog('ai-turn', 'Cancelled AI turn before execution', {
+          turnKey,
+          reason: 'inactive-or-not-ai',
+          gameMode: currentGameMode,
+          ...summarizeGameState(currentGame),
+        })
+        setIsAiThinking(false)
+        return
+      }
 
-        return nextGame
+      const currentTurnKey = `${currentGame.roundNumber}-${currentGame.turnsTakenThisRound}-${currentGame.players[currentGame.activePlayerIndex]?.id}`
+
+      if (currentTurnKey !== turnKey) {
+        clientDebugLog('ai-turn', 'Cancelled AI turn before execution', {
+          turnKey,
+          currentTurnKey,
+          reason: 'turn-key-changed',
+          ...summarizeGameState(currentGame),
+        })
+        setIsAiThinking(false)
+        return
+      }
+
+      aiTurnExecutedRef.current = turnKey
+
+      clientDebugLog('ai-turn', 'Running AI turn', {
+        turnKey,
+        ...summarizeGameState(currentGame),
       })
+
+      const { game: nextGame, logEntries } = runAiTurn(currentGame)
+
+      if (nextGame === currentGame) {
+        aiTurnKeyRef.current = null
+        aiTurnExecutedRef.current = null
+        clientDebugLog('ai-turn', 'AI turn made no progress; scheduling retry', {
+          turnKey,
+          retryCount: aiTurnRetry + 1,
+          ...summarizeGameState(currentGame),
+        })
+        setAiTurnRetry((retryCount) => retryCount + 1)
+        setIsAiThinking(false)
+        return
+      }
+
+      aiTurnKeyRef.current = null
+      aiTurnExecutedRef.current = null
+      setTurnStartSnapshot(nextGame.status === 'playing' ? nextGame : null)
+
+      if (logEntries.length > 0) {
+        setAiLog((currentLog) => [...logEntries, ...currentLog].slice(0, 40))
+      }
+
+      clientDebugLog('ai-turn', 'AI turn completed', {
+        turnKey,
+        actionCount: logEntries.length,
+        actions: logEntries.map((entry) => entry.description),
+        before: summarizeGameState(currentGame),
+        after: summarizeGameState(nextGame),
+      })
+
+      setGame(nextGame)
       setIsAiThinking(false)
     }, 400)
 
@@ -595,6 +684,7 @@ function App() {
     game?.turnsTakenThisRound,
     gameMode,
     isVsAiGame,
+    aiTurnRetry,
   ])
 
   const applyOnlineRoomView = (view: RoomView) => {
@@ -608,6 +698,7 @@ function App() {
 
   const handleServerMessage = (message: ServerMessage) => {
     if (message.type === 'error') {
+      clientDebugLog('online', 'Server error', { message: message.message })
       setOnlineError(message.message)
       return
     }
@@ -615,10 +706,22 @@ function App() {
     setOnlineError(null)
 
     if (message.type === 'room-created' || message.type === 'room-joined') {
+      clientDebugLog('online', message.type === 'room-created' ? 'Joined created room' : 'Joined room', {
+        roomCode: message.view.roomCode,
+        playerId: message.playerId,
+      })
       setOnlineClientId(message.clientId)
       setOnlinePlayerId(message.playerId)
       applyOnlineRoomView(message.view)
       return
+    }
+
+    if (message.type === 'game-action-result') {
+      clientDebugLog(
+        'online',
+        message.accepted ? 'Server accepted action' : 'Server rejected action',
+        summarizeGameState(message.view.game) ?? undefined,
+      )
     }
 
     applyOnlineRoomView(message.view)
@@ -642,8 +745,14 @@ function App() {
     setOnlinePlayerId(null)
     setOnlineError(null)
     setGameMode('hotseat')
+    setAiLog([])
+    setAiTurnRetry(0)
     setGame(nextGame)
     setTurnStartSnapshot(nextGame)
+    clientDebugLog('game', 'Started offline hot-seat game', {
+      playerCount: nextPlayerCount,
+      ...summarizeGameState(nextGame),
+    })
   }
 
   const startVsAiGame = (nextPlayerCount: PlayerCount) => {
@@ -653,8 +762,14 @@ function App() {
     setOnlinePlayerId(null)
     setOnlineError(null)
     setGameMode('vsAi')
+    setAiLog([])
+    setAiTurnRetry(0)
     setGame(nextGame)
     setTurnStartSnapshot(nextGame)
+    clientDebugLog('game', 'Started vs AI game', {
+      playerCount: nextPlayerCount,
+      ...summarizeGameState(nextGame),
+    })
   }
 
   const continueOfflineGame = () => {
@@ -672,15 +787,39 @@ function App() {
     setGame(savedGame.game)
     setGameMode(savedGame.gameMode ?? 'hotseat')
     setTurnStartSnapshot(savedGame.turnStartSnapshot)
+    clientDebugLog('game', 'Continued offline save', {
+      gameMode: savedGame.gameMode ?? 'hotseat',
+      savedAt: savedGame.savedAt,
+      ...summarizeGameState(savedGame.game),
+    })
   }
 
   const dispatchGameAction = (action: GameAction) => {
     if (onlineRoom) {
+      clientDebugLog('action', 'Sending online game action', {
+        roomCode: onlineRoom.roomCode,
+        ...summarizeGameAction(action),
+      })
       getMultiplayerClient().sendAction(onlineRoom.roomCode, action)
       return
     }
 
-    setGame((currentGame) => (currentGame ? applyGameAction(currentGame, action) : currentGame))
+    setGame((currentGame) => {
+      if (!currentGame) {
+        return currentGame
+      }
+
+      const nextGame = applyGameAction(currentGame, action)
+      const accepted = nextGame !== currentGame
+
+      clientDebugLog('action', accepted ? 'Applied local game action' : 'Rejected local game action', {
+        ...summarizeGameAction(action),
+        before: summarizeGameState(currentGame),
+        after: summarizeGameState(nextGame),
+      })
+
+      return nextGame
+    })
   }
 
   const hostOnlineGame = (nextPlayerCount: PlayerCount, hostName: string) => {
@@ -722,6 +861,8 @@ function App() {
     setOnlineError(null)
     setTurnStartSnapshot(null)
     setIsAiThinking(false)
+    setAiLog([])
+    setAiTurnRetry(0)
     setOfflineSaveSummary(getOfflineSaveSummary())
   }
 
@@ -731,6 +872,12 @@ function App() {
     }
 
     if (onlineRoom) {
+      clientDebugLog('turn', 'Passing turn online', {
+        roomCode: onlineRoom.roomCode,
+        playerId: activePlayer.id,
+        playerName: activePlayer.name,
+        ...summarizeGameState(game),
+      })
       dispatchGameAction({
         type: 'pass-turn',
         playerId: activePlayer.id,
@@ -746,6 +893,14 @@ function App() {
       const nextGame = applyGameAction(currentGame, {
         type: 'pass-turn',
         playerId: activePlayer.id,
+      })
+      const accepted = nextGame !== currentGame
+
+      clientDebugLog('turn', accepted ? 'Passed turn locally' : 'Pass turn rejected locally', {
+        playerId: activePlayer.id,
+        playerName: activePlayer.name,
+        before: summarizeGameState(currentGame),
+        after: summarizeGameState(nextGame),
       })
 
       if (nextGame !== currentGame) {
@@ -1490,7 +1645,7 @@ function App() {
             <button
               className={`${index === activePlayerIndex ? 'is-active' : ''} ${
                 onlineRoom && player.id === onlinePlayerId ? 'is-viewed-player' : ''
-              } ${isVsAiGame && index === HUMAN_PLAYER_INDEX ? 'is-viewed-player' : ''}`}
+              } ${isVsAiGame && player.id === HUMAN_PLAYER_ID ? 'is-viewed-player' : ''}`}
               disabled={index !== activePlayerIndex || isGameEnded || isVsAiGame}
               key={player.id}
               style={getPlayerPieceStyle(player.id)}
@@ -1503,6 +1658,29 @@ function App() {
       </section>
 
       <HelpPanel />
+
+      {isVsAiGame ? (
+        <section className="panel ai-log-panel" aria-label="AI activity log">
+          <div className="panel__header">
+            <p className="eyebrow">AI log</p>
+            <h2>Recent AI actions</h2>
+          </div>
+          {aiLog.length === 0 ? (
+            <p className="ai-log-empty">AI moves will appear here.</p>
+          ) : (
+            <ol className="ai-log-list">
+              {aiLog.map((entry) => (
+                <li className="ai-log-entry" key={entry.id}>
+                  <span className="ai-log-entry__meta">
+                    Round {entry.roundNumber} · {entry.playerName} · Action {entry.actionNumber}
+                  </span>
+                  <span className="ai-log-entry__description">{entry.description}</span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+      ) : null}
 
       <section className="score-panel" aria-label="Player VP and income counters">
         <div className="panel__header">

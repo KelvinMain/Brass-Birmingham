@@ -73,10 +73,10 @@ export function TitleScreen({
             Play vs AI
           </button>
           <button onClick={() => setMode('host')} type="button">
-            Host Online Game
+            Host Online Game (BETA)
           </button>
           <button onClick={() => setMode('join')} type="button">
-            Join Online Game
+            Join Online Game (BETA)
           </button>
         </div>
       ) : null}
@@ -113,7 +113,7 @@ export function TitleScreen({
       {mode === 'vsAi' ? (
         <div className="title-mode-panel">
           <p className="eyebrow">Solo vs AI</p>
-          <p>You play as Player 1. AI opponents discard two random cards and pass on their turns.</p>
+          <p>You play as Player 1. AI opponents take 1 action in canal round 1, otherwise 2.</p>
           {offlineSaveSummary ? (
             <p className="title-continue-note">
               Starting a new game replaces your saved offline game.

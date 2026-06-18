@@ -80,6 +80,16 @@ export function getRequiredEndTurnHandSize(game: GameState): number {
   return Math.max(0, game.turnStartHandCount - 2)
 }
 
+export function getActionsPerTurn(game: GameState): number {
+  const activePlayer = game.players[game.activePlayerIndex]
+
+  if (!activePlayer) {
+    return 0
+  }
+
+  return Math.max(0, activePlayer.hand.length - getRequiredEndTurnHandSize(game))
+}
+
 export function getTurnOrderSpendLabel(game: GameState, playerIndex: number): string {
   const player = game.players[playerIndex]
 

@@ -2,6 +2,7 @@ import { createServer } from 'node:http'
 import { WebSocketServer } from 'ws'
 import type { WebSocket } from 'ws'
 
+import { writeDebugLog } from '../debug/log'
 import { createRoomManager } from './roomManager'
 import type { ClientMessage, ServerMessage } from '../src/multiplayer/protocol'
 
@@ -51,6 +52,11 @@ function handleMessage(socket: WebSocket, rawMessage: string) {
         hostName: message.hostName,
         playerCount: message.playerCount,
       })
+      writeDebugLog('online', 'Room created', {
+        roomCode: result.roomCode,
+        playerCount: message.playerCount,
+        hostName: message.hostName,
+      })
       rememberClient(result.clientId, result.roomCode, socket)
       send(socket, {
         type: 'room-created',
@@ -63,6 +69,10 @@ function handleMessage(socket: WebSocket, rawMessage: string) {
 
     if (message.type === 'join-room') {
       const result = rooms.joinRoom({
+        roomCode: message.roomCode,
+        playerName: message.playerName,
+      })
+      writeDebugLog('online', 'Player joined room', {
         roomCode: message.roomCode,
         playerName: message.playerName,
       })
@@ -88,6 +98,10 @@ function handleMessage(socket: WebSocket, rawMessage: string) {
 
     if (message.type === 'start-room') {
       const view = rooms.startRoom(message.roomCode, clientId)
+      writeDebugLog('online', 'Room started', {
+        roomCode: message.roomCode,
+        playerCount: view.playerCount,
+      })
       send(socket, { type: 'room-view', view })
       broadcastRoom(message.roomCode)
       return
@@ -95,6 +109,14 @@ function handleMessage(socket: WebSocket, rawMessage: string) {
 
     if (message.type === 'game-action') {
       const result = rooms.applyRoomAction(message.roomCode, clientId, message.action)
+      writeDebugLog('online', result.accepted ? 'Game action accepted' : 'Game action rejected', {
+        roomCode: message.roomCode,
+        actionType: message.action.type,
+        playerId: message.action.playerId,
+        activePlayerId: result.view.game?.players[result.view.game.activePlayerIndex]?.id,
+        roundNumber: result.view.game?.roundNumber,
+        turnsTakenThisRound: result.view.game?.turnsTakenThisRound,
+      })
       send(socket, {
         type: 'game-action-result',
         accepted: result.accepted,
@@ -103,6 +125,9 @@ function handleMessage(socket: WebSocket, rawMessage: string) {
       broadcastRoom(message.roomCode)
     }
   } catch (error) {
+    writeDebugLog('online', 'WebSocket handler error', {
+      error: error instanceof Error ? error.message : 'Unexpected server error',
+    })
     send(socket, {
       type: 'error',
       message: error instanceof Error ? error.message : 'Unexpected server error',
@@ -121,4 +146,5 @@ wss.on('connection', (socket) => {
 
 server.listen(port, () => {
   console.log(`Brass Birmingham room server listening on ws://localhost:${port}/ws`)
+  writeDebugLog('dev', 'Online game debug logs will print in this terminal')
 })

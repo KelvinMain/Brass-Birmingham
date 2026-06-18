@@ -42,4 +42,19 @@ describe('selectPlayerView', () => {
     expect(view.viewedPlayer?.id).toBe('player-1')
     expect(view.viewedPlayerIndex).toBe(0)
   })
+
+  it('keeps player-1 in view during vs AI play after turn order changes', () => {
+    const baseGame = createGameState(3)
+    const game = {
+      ...baseGame,
+      activePlayerIndex: 0,
+      players: [baseGame.players[1], baseGame.players[0], baseGame.players[2]],
+    }
+
+    const view = selectPlayerView(game, null, 'vsAi')
+
+    expect(view.turnPlayer?.id).toBe('player-2')
+    expect(view.viewedPlayer?.id).toBe('player-1')
+    expect(view.viewedPlayerIndex).toBe(1)
+  })
 })

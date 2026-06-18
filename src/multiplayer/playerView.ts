@@ -1,6 +1,6 @@
 import type { GameState, LocalPlayer } from '../game/game'
 import type { LocalGameMode } from '../game/gameMode'
-import { HUMAN_PLAYER_INDEX } from '../game/gameMode'
+import { HUMAN_PLAYER_ID } from '../game/gameMode'
 
 export type SelectedPlayerView = {
   turnPlayer: LocalPlayer | undefined
@@ -18,11 +18,12 @@ export function selectPlayerView(
   const onlinePlayerIndex = onlinePlayerId
     ? (game?.players.findIndex((player) => player.id === onlinePlayerId) ?? -1)
     : -1
+  const humanPlayerIndex = game?.players.findIndex((player) => player.id === HUMAN_PLAYER_ID) ?? -1
   const viewedPlayerIndex =
     onlinePlayerIndex >= 0
       ? onlinePlayerIndex
       : localGameMode === 'vsAi'
-        ? HUMAN_PLAYER_INDEX
+        ? Math.max(0, humanPlayerIndex)
         : turnPlayerIndex
 
   return {

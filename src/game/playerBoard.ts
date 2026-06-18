@@ -14,6 +14,18 @@ export type PlayerBoardIndustryTile = {
   y: number
 }
 
+export type PlayerBoardTileResourceCost = Partial<Record<'beer' | 'coal' | 'iron', number>>
+
+export type PlayerBoardIndustryTileRule = {
+  buildCost: {
+    money: number
+    resources?: PlayerBoardTileResourceCost
+  }
+  incomeIncrease: number
+  sellBeer?: number
+  victoryPoints: number
+}
+
 export const playerBoardColorByPlayerColor = {
   white: 'white',
   red: 'orange',
@@ -56,8 +68,46 @@ export const playerBoardIndustryTiles: PlayerBoardIndustryTile[] = [
   { id: 'manufacturer-8', industry: 'manufacturer', level: 8, count: 2, x: 89.14, y: 10.49 },
 ]
 
+export const playerBoardIndustryTileRules: Record<string, PlayerBoardIndustryTileRule> = {
+  'manufacturer-1': { buildCost: { money: 8, resources: { coal: 1 } }, incomeIncrease: 5, sellBeer: 1, victoryPoints: 3 },
+  'manufacturer-2': { buildCost: { money: 10, resources: { iron: 1 } }, incomeIncrease: 1, sellBeer: 1, victoryPoints: 5 },
+  'manufacturer-3': { buildCost: { money: 12, resources: { coal: 2 } }, incomeIncrease: 4, sellBeer: 0, victoryPoints: 4 },
+  'manufacturer-4': { buildCost: { money: 14, resources: { iron: 1 } }, incomeIncrease: 6, sellBeer: 1, victoryPoints: 3 },
+  'manufacturer-5': { buildCost: { money: 16, resources: { coal: 1 } }, incomeIncrease: 2, sellBeer: 2, victoryPoints: 8 },
+  'manufacturer-6': { buildCost: { money: 20 }, incomeIncrease: 6, sellBeer: 1, victoryPoints: 7 },
+  'manufacturer-7': { buildCost: { money: 16, resources: { coal: 1, iron: 1 } }, incomeIncrease: 4, sellBeer: 0, victoryPoints: 9 },
+  'manufacturer-8': { buildCost: { money: 20, resources: { iron: 2 } }, incomeIncrease: 1, sellBeer: 1, victoryPoints: 11 },
+  'cotton-1': { buildCost: { money: 12 }, incomeIncrease: 5, sellBeer: 1, victoryPoints: 5 },
+  'cotton-2': { buildCost: { money: 14, resources: { coal: 1 } }, incomeIncrease: 4, sellBeer: 1, victoryPoints: 5 },
+  'cotton-3': { buildCost: { money: 16, resources: { coal: 1, iron: 1 } }, incomeIncrease: 3, sellBeer: 1, victoryPoints: 9 },
+  'cotton-4': { buildCost: { money: 18, resources: { coal: 1, iron: 1 } }, incomeIncrease: 2, sellBeer: 1, victoryPoints: 12 },
+  'pottery-1': { buildCost: { money: 17, resources: { iron: 1 } }, incomeIncrease: 5, sellBeer: 1, victoryPoints: 10 },
+  'pottery-2': { buildCost: { money: 0, resources: { coal: 1 } }, incomeIncrease: 1, sellBeer: 1, victoryPoints: 1 },
+  'pottery-3': { buildCost: { money: 22, resources: { coal: 2 } }, incomeIncrease: 5, sellBeer: 2, victoryPoints: 11 },
+  'pottery-4': { buildCost: { money: 0, resources: { coal: 1 } }, incomeIncrease: 1, sellBeer: 1, victoryPoints: 1 },
+  'pottery-5': { buildCost: { money: 24, resources: { coal: 2 } }, incomeIncrease: 5, sellBeer: 2, victoryPoints: 20 },
+  'brewery-1': { buildCost: { money: 5, resources: { iron: 1 } }, incomeIncrease: 4, victoryPoints: 4 },
+  'brewery-2': { buildCost: { money: 7, resources: { iron: 1 } }, incomeIncrease: 5, victoryPoints: 5 },
+  'brewery-3': { buildCost: { money: 9, resources: { iron: 1 } }, incomeIncrease: 5, victoryPoints: 7 },
+  'brewery-4': { buildCost: { money: 9, resources: { iron: 1 } }, incomeIncrease: 5, victoryPoints: 10 },
+  'iron-1': { buildCost: { money: 5, resources: { coal: 1 } }, incomeIncrease: 3, victoryPoints: 3 },
+  'iron-2': { buildCost: { money: 7, resources: { coal: 1 } }, incomeIncrease: 3, victoryPoints: 5 },
+  'iron-3': { buildCost: { money: 9, resources: { coal: 1 } }, incomeIncrease: 2, victoryPoints: 7 },
+  'iron-4': { buildCost: { money: 12, resources: { coal: 1 } }, incomeIncrease: 1, victoryPoints: 9 },
+  'coal-1': { buildCost: { money: 5 }, incomeIncrease: 4, victoryPoints: 1 },
+  'coal-2': { buildCost: { money: 7 }, incomeIncrease: 7, victoryPoints: 2 },
+  'coal-3': { buildCost: { money: 8, resources: { iron: 1 } }, incomeIncrease: 6, victoryPoints: 3 },
+  'coal-4': { buildCost: { money: 10, resources: { iron: 1 } }, incomeIncrease: 5, victoryPoints: 4 },
+}
+
 export function getPlayerBoardTileCount(tileId: string): number {
   return playerBoardIndustryTiles.find((tile) => tile.id === tileId)?.count ?? 1
+}
+
+export function getPlayerBoardIndustryTileRule(
+  tileId: string,
+): PlayerBoardIndustryTileRule | undefined {
+  return playerBoardIndustryTileRules[tileId]
 }
 
 export function isPlayerBoardTileDevelopable(tileId: string): boolean {
