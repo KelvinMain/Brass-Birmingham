@@ -10,13 +10,16 @@ import { getIncomeMoneyDelta } from '../game'
 import { getPlayerBoardIndustryTileRule, playerBoardIndustryTiles } from '../playerBoard'
 import type { AiCandidateAction } from '../aiActions'
 import { getLoanIncomeAfterReduction } from './estimators'
+import { isLateEraPhase } from './eraTiming'
 import {
   estimateBuildLocationValue,
   estimateBuildMoneyCost,
   estimateCanalBeerDemand,
+  estimateCanalNetworkPurpose,
   estimateCoalPurchaseCost,
   estimateDevelopUnlockValue,
   estimateIronPurchaseCost,
+  estimateLinkRaceValue,
   estimateNetworkActionValue,
   estimateNetworkMoneyCost,
   estimatePlannedTileFlipLikelihood,
@@ -24,6 +27,7 @@ import {
   estimateSellableIndustryBuildAppeal,
   finiteMoneyCost,
   getBuildSpacePriority,
+  getLinkControlDelta,
   getPlayerMoney,
   PREFERRED_INCOME_TRACK,
   scoreIncomeTrackChange,
@@ -362,6 +366,10 @@ export function extractCandidateFeatures(
         }
       }
 
+      if (isLateEraPhase(game) && flipLikelihood < 0.35) {
+        setFeature(features, 'buildFlipLikelihood', flipLikelihood - (0.35 - flipLikelihood))
+      }
+
       if (game.era === 'rail' && tile && tile.level >= 2) {
         setFeature(features, 'buildRailHighLevel', tile.level * Math.max(0.45, flipLikelihood))
       }
@@ -433,13 +441,24 @@ export function extractCandidateFeatures(
 
       const linkSpaceIds = candidate.linkPlacements.map((link) => link.spaceId)
       const networkValue = estimateNetworkActionValue(game, playerId, linkSpaceIds)
+      const canalPurpose =
+        game.era === 'canal' ? estimateCanalNetworkPurpose(game, playerId, linkSpaceIds) : 1
+      const linkRaceValue = estimateLinkRaceValue(game, playerId, linkSpaceIds)
 
       if (candidate.linkPlacements.length === 2) {
         setFeature(features, 'networkDoubleLink', Math.max(0.35, networkValue * 0.75))
       } else if (game.era === 'rail') {
-        setFeature(features, 'networkSingleRail', Math.max(0.05, networkValue))
+        setFeature(
+          features,
+          'networkSingleRail',
+          Math.max(0.05, networkValue * (1 + linkRaceValue * 0.35)),
+        )
       } else {
-        setFeature(features, 'networkSingleCanal', Math.max(0.35, networkValue * 0.85))
+        setFeature(
+          features,
+          'networkSingleCanal',
+          Math.max(0.05, networkValue * 0.85 * (0.35 + canalPurpose * 0.9)),
+        )
       }
 
       let breweryLinks = 0
@@ -452,8 +471,14 @@ export function extractCandidateFeatures(
         const valueScale = Math.max(0.35, linkValue)
 
         breweryLinks += placementScore.brewery * valueScale
-        birminghamLinks += placementScore.birmingham * valueScale
         marketLinks += placementScore.market * valueScale
+
+        if (placementScore.birmingham > 0) {
+          const birminghamControl = getLinkControlDelta(game, playerId, 'Birmingham')
+          const birminghamScale =
+            birminghamControl < 0 ? 0.35 : birminghamControl === 0 ? 0.75 : 1 + birminghamControl * 0.15
+          birminghamLinks += placementScore.birmingham * valueScale * birminghamScale
+        }
       }
 
       setFeature(features, 'networkToBrewery', breweryLinks)
@@ -470,7 +495,11 @@ export function extractCandidateFeatures(
         'networkExtendsOwnNetwork',
         networkExtendsOwnNetwork(game, playerId, candidate) * Math.max(0.4, networkValue),
       )
-      setFeature(features, 'networkBlocksOpponent', networkBlocksOpponent(game, playerId, candidate))
+      setFeature(
+        features,
+        'networkBlocksOpponent',
+        networkBlocksOpponent(game, playerId, candidate) * (1 + linkRaceValue * 0.5),
+      )
       break
     }
     case 'develop': {

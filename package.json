@@ -12,6 +12,8 @@
     "test": "vitest run",
     "evolve-ai": "tsx scripts/evolve-ai.ts",
     "evolve-ai-league": "tsx scripts/evolve-ai.ts -- --mode league --resume-from public/ai/evolved-model.json",
+    "tune-ai-weights": "tsx scripts/tune-ai-weights.ts",
+    "tune-ai-weights-league": "tsx scripts/tune-ai-weights.ts -- --mode league --resume-from public/ai/tuned-weights.json",
     "preview": "vite preview"
   },
   "dependencies": {

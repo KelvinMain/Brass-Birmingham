@@ -24,6 +24,7 @@ import {
 } from '../playerBoard'
 import type { AiCandidateAction } from '../aiActions'
 import { countLinkSymbolsAtLocation } from '../eraScoring'
+import { isEarlyEraPhase, isRailLinkRacePhase } from './eraTiming'
 
 export const PREFERRED_INCOME_TRACK = 10
 
@@ -46,10 +47,8 @@ export function scoreIncomeTrackPreference(income: number, game?: GameState): nu
   const distanceFromNeutral = Math.abs(getIncomeMoneyDelta(income))
   let score = -distanceFromNeutral * 5
 
-  if (game?.era === 'canal' && game.roundNumber <= 5) {
-    score *= 1.6
-  } else if (game?.era === 'rail' && game.roundNumber <= 2) {
-    score *= 1.3
+  if (game && isEarlyEraPhase(game)) {
+    score *= game.era === 'canal' ? 1.6 : 1.3
   }
 
   if (distanceFromNeutral <= 1) {
@@ -68,10 +67,8 @@ export function scoreIncomeAnchorPreference(income: number, game?: GameState): n
   const distanceFromNeutral = Math.abs(incomeDelta)
   let score = -distanceFromNeutral * 8
 
-  if (game?.era === 'canal' && game.roundNumber <= 5) {
-    score -= distanceFromNeutral * 5
-  } else if (game?.era === 'rail' && game.roundNumber <= 2) {
-    score -= distanceFromNeutral * 3
+  if (game && isEarlyEraPhase(game)) {
+    score -= distanceFromNeutral * (game.era === 'canal' ? 5 : 3)
   }
 
   if (distanceFromNeutral <= 1) {
@@ -577,12 +574,135 @@ function countIndustriesAtCity(board: BoardState, cityName: string): number {
   ).length
 }
 
-function countPlayerLinksAtCity(board: BoardState, playerId: string, cityName: string): number {
+export function countPlayerLinksAtCity(
+  board: BoardState,
+  playerId: string,
+  cityName: string,
+): number {
   return Object.entries(board.linkPlacements).filter(
     ([spaceId, placement]) =>
       placement.ownerId === playerId &&
       getLinkRouteCities(spaceId).includes(cityName),
   ).length
+}
+
+export function countOpponentLinksAtCity(
+  game: GameState,
+  playerId: string,
+  cityName: string,
+): number {
+  let maxOpponentLinks = 0
+
+  for (const opponent of game.players) {
+    if (opponent.id === playerId) {
+      continue
+    }
+
+    maxOpponentLinks = Math.max(
+      maxOpponentLinks,
+      countPlayerLinksAtCity(game.board, opponent.id, cityName),
+    )
+  }
+
+  return maxOpponentLinks
+}
+
+export function getLinkControlDelta(
+  game: GameState,
+  playerId: string,
+  cityName: string,
+): number {
+  return (
+    countPlayerLinksAtCity(game.board, playerId, cityName) -
+    countOpponentLinksAtCity(game, playerId, cityName)
+  )
+}
+
+function playerHasIndustryAtCity(game: GameState, playerId: string, cityName: string): boolean {
+  return Object.entries(game.board.industryPlacements).some(
+    ([spaceId, placement]) =>
+      placement.ownerId === playerId && getIndustrySpaceCity(spaceId) === cityName,
+  )
+}
+
+export function estimateCanalNetworkPurpose(
+  game: GameState,
+  playerId: string,
+  linkSpaceIds: string[],
+): number {
+  if (linkSpaceIds.length === 0) {
+    return 0
+  }
+
+  let purpose = 0
+
+  for (const spaceId of linkSpaceIds) {
+    const cities = getLinkRouteCities(spaceId)
+    const routeTouchesOwned = cities.some((city) => isLocationInPlayerNetwork(game, playerId, city))
+    const addsReach = cities.some((city) => !isLocationInPlayerNetwork(game, playerId, city))
+
+    if (routeTouchesOwned && addsReach) {
+      purpose += 0.4
+    }
+
+    for (const city of cities) {
+      if (
+        playerHasIndustryAtCity(game, playerId, city) &&
+        !isConnectedToMarket(game.board, city)
+      ) {
+        purpose += 0.45
+      }
+
+      if (
+        routeTouchesOwned &&
+        addsReach &&
+        estimateCityBuildPotential(game, city) > 0.25 &&
+        !isLocationInPlayerNetwork(game, playerId, city)
+      ) {
+        purpose += 0.25
+      }
+
+      const opponentLinks = countOpponentLinksAtCity(game, playerId, city)
+      const ownLinks = countPlayerLinksAtCity(game.board, playerId, city)
+
+      if (opponentLinks > ownLinks) {
+        purpose += 0.2
+      }
+    }
+  }
+
+  return Math.min(1, purpose / linkSpaceIds.length)
+}
+
+export function estimateLinkRaceValue(
+  game: GameState,
+  playerId: string,
+  linkSpaceIds: string[],
+): number {
+  if (game.era !== 'rail' || linkSpaceIds.length === 0) {
+    return 0
+  }
+
+  let raceValue = 0
+
+  for (const spaceId of linkSpaceIds) {
+    for (const city of getLinkRouteCities(spaceId)) {
+      const opponentLinks = countOpponentLinksAtCity(game, playerId, city)
+      const ownLinks = countPlayerLinksAtCity(game.board, playerId, city)
+      const industries = countIndustriesAtCity(game.board, city)
+      const buildPotential = estimateCityBuildPotential(game, city)
+
+      if (opponentLinks > ownLinks && (industries > 0 || buildPotential > 0.3)) {
+        raceValue += 0.35 + Math.min(0.4, (opponentLinks - ownLinks) * 0.15)
+      }
+
+      if (opponentLinks >= 1 && ownLinks === 0 && buildPotential > 0.2) {
+        raceValue += 0.25
+      }
+    }
+  }
+
+  return Math.min(1.2, raceValue / linkSpaceIds.length)
 }
 
 function isLocationInPlayerNetwork(game: GameState, playerId: string, locationName: string): boolean {
@@ -649,10 +769,17 @@ export function estimateRailLinkValue(game: GameState, playerId: string, spaceId
   let value = 0
 
   for (const city of cities) {
+    const linkControlDelta = getLinkControlDelta(game, playerId, city)
     value += countLinkSymbolsAtLocation(game.board, city) * 0.4
     value += countIndustriesAtCity(game.board, city) * 0.22
     value += estimateCityBuildPotential(game, city) * 0.35
     value += countPlayerLinksAtCity(game.board, playerId, city) * 0.12
+
+    if (linkControlDelta < 0) {
+      value -= Math.abs(linkControlDelta) * 0.35
+    } else if (linkControlDelta > 0 && countOpponentLinksAtCity(game, playerId, city) > 0) {
+      value += linkControlDelta * 0.2
+    }
   }
 
   return Math.min(2, value / Math.max(1, cities.length))
@@ -672,10 +799,15 @@ export function estimateNetworkActionValue(
     linkSpaceIds.length
 
   if (game.era === 'canal') {
-    return Math.min(2, average + 0.35)
+    const purpose = estimateCanalNetworkPurpose(game, playerId, linkSpaceIds)
+
+    return Math.min(2, average * (0.35 + purpose * 0.85))
   }
 
-  return average
+  const raceValue = estimateLinkRaceValue(game, playerId, linkSpaceIds)
+  const raceMultiplier = isRailLinkRacePhase(game) ? 1 + raceValue * 0.45 : 1 + raceValue * 0.2
+
+  return Math.min(2, average * raceMultiplier)
 }
 
 export function estimateBuildLocationValue(
@@ -687,6 +819,7 @@ export function estimateBuildLocationValue(
   const rule = getPlayerBoardIndustryTileRule(tileId)
   const linkSymbols = rule?.linkSymbols ?? 0
   const ownedLinksAtCity = countPlayerLinksAtCity(game.board, playerId, cityName)
+  const linkControlDelta = getLinkControlDelta(game, playerId, cityName)
   let value = 0
 
   if (linkSymbols > 0 && ownedLinksAtCity > 0) {
@@ -695,6 +828,12 @@ export function estimateBuildLocationValue(
 
   if (ownedLinksAtCity >= 2) {
     value += 0.45
+  }
+
+  if (linkControlDelta < 0) {
+    value -= 0.35 + Math.abs(linkControlDelta) * 0.2
+  } else if (linkControlDelta > 0) {
+    value += linkControlDelta * 0.15
   }
 
   const inNetwork = isLocationInPlayerNetwork(game, playerId, cityName)
@@ -712,7 +851,7 @@ export function estimateBuildLocationValue(
     value += 0.12
   }
 
-  return Math.min(2, value)
+  return Math.min(2, Math.max(0, value))
 }
 
 export function estimateDevelopUnlockValue(
@@ -797,8 +936,16 @@ export function estimateSellableIndustryBuildAppeal(
 
   const vpAppeal = (rule?.victoryPoints ?? 0) / 12
   const incomeAppeal = (rule?.incomeIncrease ?? 0) / 8
+  let appeal = Math.min(2, merchantReach * 0.35 + flipLikelihood * 0.45 + vpAppeal + incomeAppeal * 0.25)
+  const linkControlDelta = getLinkControlDelta(game, playerId, cityName)
 
-  return Math.min(2, merchantReach * 0.35 + flipLikelihood * 0.45 + vpAppeal + incomeAppeal * 0.25)
+  if (linkControlDelta < 0) {
+    appeal *= 0.45 + Math.max(0, linkControlDelta + 2) * 0.15
+  } else if (linkControlDelta > 0) {
+    appeal = Math.min(2, appeal * (1 + linkControlDelta * 0.12))
+  }
+
+  return appeal
 }
 
 export function getLoanIncomeAfterReduction(income: number): number | null {

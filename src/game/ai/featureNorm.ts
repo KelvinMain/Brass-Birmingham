@@ -1,5 +1,7 @@
 import type { AiParamName } from './params'
 
+export type AiScoringParams = Record<AiParamName, number>
+
 export const FEATURE_NORM: Record<AiParamName, number> = {
   biasBuild: 1,
   biasNetwork: 1,
@@ -80,7 +82,7 @@ export const FEATURE_NORM: Record<AiParamName, number> = {
   developSellableIndustry: 2,
 }
 
-const LEGACY_UNIT_WEIGHTS: Record<AiParamName, number> = {
+export const DEFAULT_UNIT_WEIGHTS: Record<AiParamName, number> = {
   biasBuild: 1,
   biasNetwork: 1,
   biasDevelop: 0.95,
@@ -104,10 +106,10 @@ const LEGACY_UNIT_WEIGHTS: Record<AiParamName, number> = {
   buildRailHighLevel: 6,
   buildLocationQuality: 8,
   networkDoubleLink: 155,
-  networkSingleRail: 38,
-  networkSingleCanal: 38,
+  networkSingleRail: 48,
+  networkSingleCanal: 22,
   networkToBrewery: 28,
-  networkToBirmingham: 18,
+  networkToBirmingham: 14,
   networkToMarket: 12,
   networkMoneyCost: 1.5,
   developOneBase: -220,
@@ -132,7 +134,7 @@ const LEGACY_UNIT_WEIGHTS: Record<AiParamName, number> = {
   loanComfortablePenalty: 15,
   biasBuildLink: 0,
   biasConsumeResource: 0.6,
-  buildFlipLikelihood: 0,
+  buildFlipLikelihood: 45,
   buildOverbuild: 0,
   buildCoalResourceCost: 1.5,
   buildIronResourceCost: 1.5,
@@ -144,7 +146,7 @@ const LEGACY_UNIT_WEIGHTS: Record<AiParamName, number> = {
   buildLinkToMarket: 12,
   buildLinkToBrewery: 28,
   networkCoalCost: 1.2,
-  networkBlocksOpponent: 0,
+  networkBlocksOpponent: 35,
   networkExtendsOwnNetwork: 15,
   sellCotton: 60,
   sellManufacturer: 70,
@@ -158,6 +160,14 @@ const LEGACY_UNIT_WEIGHTS: Record<AiParamName, number> = {
   consumeCoal: 22,
   consumeIron: 22,
   developSellableIndustry: 14,
+}
+
+/** @deprecated Use DEFAULT_UNIT_WEIGHTS */
+export const LEGACY_UNIT_WEIGHTS = DEFAULT_UNIT_WEIGHTS
+
+export type SerializedUnitWeights = {
+  version: 1
+  unitWeights: Record<AiParamName, number>
 }
 
 export function normalizeFeatureValue(name: AiParamName, rawValue: number): number {
@@ -174,6 +184,56 @@ export function buildDefaultParams(
   paramNames: readonly AiParamName[],
 ): Record<AiParamName, number> {
   return Object.fromEntries(
-    paramNames.map((name) => [name, LEGACY_UNIT_WEIGHTS[name] * FEATURE_NORM[name]]),
+    paramNames.map((name) => [name, DEFAULT_UNIT_WEIGHTS[name] * FEATURE_NORM[name]]),
   ) as Record<AiParamName, number>
+}
+
+export function buildParamsFromUnitWeights(
+  weights: Record<AiParamName, number>,
+  paramNames: readonly AiParamName[],
+): AiScoringParams {
+  return Object.fromEntries(
+    paramNames.map((name) => [name, weights[name] * FEATURE_NORM[name]]),
+  ) as AiScoringParams
+}
+
+export function cloneUnitWeights(
+  weights: Record<AiParamName, number>,
+): Record<AiParamName, number> {
+  return { ...weights }
+}
+
+export function unitWeightsToVector(
+  weights: Record<AiParamName, number>,
+  paramNames: readonly AiParamName[],
+): Float32Array {
+  return Float32Array.from(paramNames.map((name) => weights[name]))
+}
+
+export function vectorToUnitWeights(
+  vector: Float32Array | number[],
+  base: Record<AiParamName, number> = DEFAULT_UNIT_WEIGHTS,
+): Record<AiParamName, number> {
+  return Object.fromEntries(
+    Object.keys(base).map((name, index) => [name, vector[index] ?? base[name as AiParamName]]),
+  ) as Record<AiParamName, number>
+}
+
+export function serializeUnitWeights(
+  weights: Record<AiParamName, number>,
+): SerializedUnitWeights {
+  return {
+    version: 1,
+    unitWeights: cloneUnitWeights(weights),
+  }
+}
+
+export function deserializeUnitWeights(
+  serialized: SerializedUnitWeights | Record<AiParamName, number>,
+): Record<AiParamName, number> {
+  if ('unitWeights' in serialized) {
+    return cloneUnitWeights({ ...DEFAULT_UNIT_WEIGHTS, ...serialized.unitWeights })
+  }
+
+  return cloneUnitWeights({ ...DEFAULT_UNIT_WEIGHTS, ...serialized })
 }

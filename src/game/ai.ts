@@ -79,6 +79,42 @@ export type {
 } from './ai/evolution'
 
 export {
+  DEFAULT_UNIT_WEIGHTS,
+  LEGACY_UNIT_WEIGHTS,
+  FEATURE_NORM,
+  buildParamsFromUnitWeights,
+  cloneUnitWeights,
+  deserializeUnitWeights,
+  serializeUnitWeights,
+  unitWeightsToVector,
+  vectorToUnitWeights,
+} from './ai/featureNorm'
+export type { SerializedUnitWeights } from './ai/featureNorm'
+
+export {
+  createTunedAiAgentFactory,
+  createWeightedAiAgentFactory,
+  loadTunedWeightsFromSerialized,
+  runWeightEvolution,
+} from './ai/weightEvolution'
+export type {
+  WeightEvolutionConfig,
+  WeightEvolutionGenerationStats,
+  WeightEvolutionMode,
+  WeightEvolutionResult,
+} from './ai/weightEvolution'
+
+export {
+  getEraCardProgress,
+  getEraDeckSize,
+  getEraRoundProgress,
+  estimateMaxRoundsInEra,
+  isEarlyEraPhase,
+  isLateEraPhase,
+  isRailLinkRacePhase,
+} from './ai/eraTiming'
+
+export {
   DEFAULT_LEAGUE_CONFIG,
   HallOfFame,
   buildLeagueOpponentContext,
