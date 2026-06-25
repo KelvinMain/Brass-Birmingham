@@ -627,7 +627,9 @@ describe('executeAiCandidateAction', () => {
       money: 47,
     })
     expect(result.game.players[1].hand).toEqual([])
-    expect(result.description).toBe('Took a loan, reduced income level from 30 to 24')
+    expect(result.description).toBe(
+      'Took a loan, received £30, reduced income level from 30 to 24',
+    )
   })
 
   it('develops one or two lowest tiles and consumes free iron from iron works first', () => {
@@ -670,7 +672,9 @@ describe('executeAiCandidateAction', () => {
 
     expect(result.game.developedIndustries.map((tile) => tile.tileId)).toEqual(['coal-1', 'coal-2'])
     expect(result.game.board.industryResourcePlacements['birmingham-3']).toEqual([])
-    expect(result.description).toBe('Developed Coal (level 1) and Coal (level 2), consumed 2 iron from iron mine in Birmingham')
+    expect(result.description).toBe(
+      'Developed Coal (level 1) and Coal (level 2), consumed 2 iron from iron mine in Birmingham (Player 1\'s)',
+    )
   })
 
   it('buys remaining develop iron from the market after free iron is exhausted', () => {
@@ -711,7 +715,9 @@ describe('executeAiCandidateAction', () => {
     expect(result.game.board.industryResourcePlacements['birmingham-3']).toEqual([])
     expect(result.game.board.marketResourcePlacements['iron-market-3']).toBeUndefined()
     expect(result.game.players[1].money).toBe(15)
-    expect(result.description).toBe('Developed Coal (level 1) and Coal (level 2), consumed 1 iron from iron mine in Birmingham and bought 1 from the market')
+    expect(result.description).toBe(
+      'Developed Coal (level 1) and Coal (level 2), consumed 1 iron from iron mine in Birmingham (Player 1\'s) and bought 1 from the market',
+    )
   })
 
   it('can buy develop iron from the market when there are no iron works cubes', () => {
@@ -1090,6 +1096,37 @@ describe('executeAiCandidateAction', () => {
       ownerId: playerId,
     })
     expect(result.game.board.industryResourcePlacements['cannock-2']).toHaveLength(3)
+  })
+
+  it('rejects overbuilding with the same or lower level tile', () => {
+    const baseGame = createGameState(2)
+    const playerId = baseGame.players[1].id
+    const card = baseGame.players[1].hand[0]
+    const withCoal = placeIndustryTile(baseGame.board, 'cannock-2', {
+      id: 'old-coal',
+      industry: 'coal',
+      ownerId: playerId,
+      tileId: 'coal-2',
+    })
+    const game = {
+      ...baseGame,
+      activePlayerIndex: 1,
+      board: withCoal,
+      players: baseGame.players.map((player, index) =>
+        index === 1 ? { ...player, hand: [card], money: 17 } : player,
+      ),
+    }
+    const sameLevelAction: AiCandidateAction = {
+      kind: 'build-industry',
+      cardId: card.id,
+      spaceId: 'cannock-2',
+      playerBoardTileId: 'coal-2',
+      industry: 'coal',
+      cityName: 'Cannock',
+      description: 'Built coal in Cannock (level 2)',
+    }
+
+    expect(executeAiCandidateAction(game, playerId, sameLevelAction).game).toBe(game)
   })
 
   it('executes a one-link rail network action by paying 5 and consuming connected coal', () => {

@@ -1211,6 +1211,13 @@ function createMerchantBeerPlacements(
   )
 }
 
+export function resetMerchantBeerPlacements(board: BoardState): BoardState {
+  return {
+    ...board,
+    beerResourcePlacements: createMerchantBeerPlacements(board.merchantTilePlacements),
+  }
+}
+
 export function getVisibleMerchantTilePlacements(
   state: BoardState,
 ): Record<string, MerchantTilePlacement> {

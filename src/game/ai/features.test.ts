@@ -57,7 +57,7 @@ describe('extractCandidateFeatures', () => {
 
     expect(buildFeatures[breweryIndex]).toBe(1)
     expect(networkFeatures[breweryIndex]).toBe(0)
-    expect(networkFeatures[canalIndex]).toBe(1)
+    expect(networkFeatures[canalIndex]).toBeGreaterThan(0)
     expect(buildFeatures[canalIndex]).toBe(0)
   })
 

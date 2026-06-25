@@ -1,5 +1,5 @@
 import type { PlayerCount } from '../cards'
-import { createGameState } from '../game'
+import { applyRoundOneStartingPlayer, createGameState } from '../game'
 import type { GameState } from '../game'
 import { getDeckForPlayerCount, shuffleDeck } from '../deck'
 import type { AiAgentFactory } from '../aiActions'
@@ -52,23 +52,6 @@ export function resolveRoundOneStartingPlayerIndex(
   }
 
   return Math.floor(createSeededRandom(seed + 31_337)() * playerCount)
-}
-
-export function applyRoundOneStartingPlayer(
-  game: GameState,
-  startingPlayerIndex: number,
-): GameState {
-  const activePlayer = game.players[startingPlayerIndex]
-
-  if (!activePlayer || game.roundNumber !== 1 || game.turnsTakenThisRound !== 0) {
-    return game
-  }
-
-  return {
-    ...game,
-    activePlayerIndex: startingPlayerIndex,
-    turnStartHandCount: activePlayer.hand.length,
-  }
 }
 
 export function simulateAiGame(options: SimulateGameOptions): SimulateGameResult {

@@ -41,6 +41,7 @@ import {
   createParametricAiAgent,
 } from './ai/parametricScorer'
 import { DEFAULT_PARAMS } from './ai/params'
+import { scoreStrategicAdjustment } from './ai/strategicScorer'
 import { getLoanIncomeAfterReduction } from './ai/estimators'
 
 export type AiActionKind =
@@ -249,7 +250,7 @@ export function createStrategicAiAgent(
   playerId: string,
   random: () => number = Math.random,
 ): AiAgent {
-  return createParametricAiAgent(game, playerId, DEFAULT_PARAMS, random)
+  return createParametricAiAgent(game, playerId, DEFAULT_PARAMS, random, scoreStrategicAdjustment)
 }
 
 function capitalize(value: string): string {
@@ -362,6 +363,7 @@ function getCandidateBuildSpaceIds(
   playerId: string,
   cityName: string,
   industry: Industry,
+  newTileId: string,
 ): string[] {
   const emptySpaces = industrySpaces.filter(
     (space) =>
@@ -386,7 +388,7 @@ function getCandidateBuildSpaceIds(
         space.city === cityName &&
         space.allowedIndustries.includes(industry) &&
         Boolean(placement) &&
-        canOverbuildIndustry(game, playerId, space.id, industry)
+        canOverbuildIndustry(game, playerId, space.id, industry, newTileId)
       )
     })
     .map((space) => space.id)
@@ -397,10 +399,19 @@ function canOverbuildIndustry(
   playerId: string,
   spaceId: string,
   industry: Industry,
+  newTileId: string,
 ): boolean {
   const existingPlacement = game.board.industryPlacements[spaceId]
 
   if (!existingPlacement || existingPlacement.industry !== industry) {
+    return false
+  }
+
+  const existingLevel =
+    playerBoardIndustryTiles.find((tile) => tile.id === existingPlacement.tileId)?.level ?? 0
+  const newLevel = playerBoardIndustryTiles.find((tile) => tile.id === newTileId)?.level ?? 0
+
+  if (newLevel <= existingLevel) {
     return false
   }
 
@@ -587,7 +598,14 @@ function applyMerchantBeerBonus(game: GameState, playerId: string, bonus: AiMerc
     : game
 }
 
-function applySellSale(game: GameState, playerId: string, sale: AiSellTile): GameState | null {
+function applySellSale(
+  game: GameState,
+  playerId: string,
+  sale: AiSellTile,
+): {
+  game: GameState
+  resourceSummary: string
+} | null {
   const placement = game.board.industryPlacements[sale.spaceId]
 
   if (
@@ -602,6 +620,7 @@ function applySellSale(game: GameState, playerId: string, sale: AiSellTile): Gam
 
   let currentGame = game
   let remainingBeer = sale.beerCount
+  const resourceParts: string[] = []
 
   if (sale.merchantBeerSpaceId) {
     if (!currentGame.board.beerResourcePlacements[sale.merchantBeerSpaceId]) {
@@ -613,6 +632,9 @@ function applySellSale(game: GameState, playerId: string, sale: AiSellTile): Gam
       board: removeBeerResourceCube(currentGame.board, sale.merchantBeerSpaceId),
     }
     remainingBeer -= 1
+    resourceParts.push(
+      `consumed 1 beer from merchant tile ${sale.merchantBeerSpaceId.replace('board-beer-', '')}`,
+    )
 
     if (sale.merchantBeerBonus) {
       currentGame = applyMerchantBeerBonus(currentGame, playerId, sale.merchantBeerBonus)
@@ -628,6 +650,10 @@ function applySellSale(game: GameState, playerId: string, sale: AiSellTile): Gam
     }
 
     currentGame = beerResult.game
+
+    if (beerResult.summary) {
+      resourceParts.push(beerResult.summary)
+    }
   }
 
   const flippedBoard = flipIndustryTile(currentGame.board, sale.spaceId)
@@ -641,7 +667,10 @@ function applySellSale(game: GameState, playerId: string, sale: AiSellTile): Gam
     board: flippedBoard,
   }
 
-  return updatePlayerScore(currentGame, playerId, 'income', sale.incomeIncrease)
+  return {
+    game: updatePlayerScore(currentGame, playerId, 'income', sale.incomeIncrease),
+    resourceSummary: resourceParts.join(' and '),
+  }
 }
 
 function getLegalSingleSellOptions(game: GameState, playerId: string): AiSellTile[] {
@@ -722,7 +751,7 @@ function getSellSequences(game: GameState, playerId: string): AiSellTile[][] {
 
     sequences.push([sale])
 
-    for (const rest of getSellSequences(afterSale, playerId)) {
+    for (const rest of getSellSequences(afterSale.game, playerId)) {
       sequences.push([sale, ...rest])
     }
   }
@@ -972,20 +1001,34 @@ function consumeIndustryResource(
 }
 
 function summarizeResourceSources(
+  game: GameState,
+  playerId: string,
   resourceKind: ResourceCubeKind,
-  consumedFromIndustry: Map<string, { cityName: string; count: number }>,
+  consumedFromIndustry: Map<string, { cityName: string; count: number; ownerId: string }>,
   boughtFromMarket: number,
+  merchantBeerCount = 0,
+  merchantSpaceId?: string,
 ): string {
-  const industryParts = [...consumedFromIndustry.values()].map(
-    (source) =>
-      `consumed ${source.count} ${resourceKind} from ${resourceKind === 'beer' ? 'brewery' : `${resourceKind} mine`} in ${source.cityName}`,
-  )
+  const industryParts = [...consumedFromIndustry.values()].map((source) => {
+    const ownerSuffix =
+      source.ownerId === playerId
+        ? ''
+        : ` (${game.players.find((player) => player.id === source.ownerId)?.name ?? 'opponent'}'s)`
+
+    return `consumed ${source.count} ${resourceKind} from ${resourceKind === 'beer' ? 'brewery' : `${resourceKind} mine`} in ${source.cityName}${ownerSuffix}`
+  })
   const marketPart =
     boughtFromMarket > 0
       ? `bought ${boughtFromMarket}${industryParts.length === 0 ? ` ${resourceKind}` : ''} from the market`
       : null
+  const merchantPart =
+    merchantBeerCount > 0 && merchantSpaceId
+      ? `consumed ${merchantBeerCount} beer from merchant tile ${merchantSpaceId.replace('merchant-tile-', '')}`
+      : null
 
-  return [...industryParts, ...(marketPart ? [marketPart] : [])].join(' and ')
+  return [...industryParts, ...(marketPart ? [marketPart] : []), ...(merchantPart ? [merchantPart] : [])].join(
+    ' and ',
+  )
 }
 
 function consumeIron(
@@ -997,7 +1040,7 @@ function consumeIron(
   summary: string
 } | null {
   let currentGame = game
-  const consumedFromIndustry = new Map<string, { cityName: string; count: number }>()
+  const consumedFromIndustry = new Map<string, { cityName: string; count: number; ownerId: string }>()
   let boughtFromMarket = 0
 
   for (let consumed = 0; consumed < count; consumed += 1) {
@@ -1008,6 +1051,7 @@ function consumeIron(
       const currentSummary = consumedFromIndustry.get(ironSource.spaceId)
       consumedFromIndustry.set(ironSource.spaceId, {
         cityName: ironSource.cityName,
+        ownerId: ironSource.ownerId,
         count: (currentSummary?.count ?? 0) + 1,
       })
       continue
@@ -1025,7 +1069,7 @@ function consumeIron(
 
   return {
     game: currentGame,
-    summary: summarizeResourceSources('iron', consumedFromIndustry, boughtFromMarket),
+    summary: summarizeResourceSources(game, playerId, 'iron', consumedFromIndustry, boughtFromMarket),
   }
 }
 
@@ -1039,7 +1083,7 @@ function consumeCoal(
   summary: string
 } | null {
   let currentGame = game
-  const consumedFromIndustry = new Map<string, { cityName: string; count: number }>()
+  const consumedFromIndustry = new Map<string, { cityName: string; count: number; ownerId: string }>()
   let boughtFromMarket = 0
 
   for (let consumed = 0; consumed < count; consumed += 1) {
@@ -1057,6 +1101,7 @@ function consumeCoal(
       const currentSummary = consumedFromIndustry.get(coalSource.spaceId)
       consumedFromIndustry.set(coalSource.spaceId, {
         cityName: coalSource.cityName,
+        ownerId: coalSource.ownerId,
         count: (currentSummary?.count ?? 0) + 1,
       })
       continue
@@ -1078,7 +1123,7 @@ function consumeCoal(
 
   return {
     game: currentGame,
-    summary: summarizeResourceSources('coal', consumedFromIndustry, boughtFromMarket),
+    summary: summarizeResourceSources(game, playerId, 'coal', consumedFromIndustry, boughtFromMarket),
   }
 }
 
@@ -1093,7 +1138,9 @@ function consumeBeer(
   summary: string
 } | null {
   let currentGame = game
-  const consumedFromIndustry = new Map<string, { cityName: string; count: number }>()
+  const consumedFromIndustry = new Map<string, { cityName: string; count: number; ownerId: string }>()
+  let merchantBeerCount = 0
+  let consumedMerchantSpaceId = merchantSpaceId
 
   for (let consumed = 0; consumed < count; consumed += 1) {
     const beerSources = getUnflippedIndustryResourceSources(currentGame.board, 'beer')
@@ -1111,6 +1158,7 @@ function consumeBeer(
       const currentSummary = consumedFromIndustry.get(beerSource.spaceId)
       consumedFromIndustry.set(beerSource.spaceId, {
         cityName: beerSource.cityName,
+        ownerId: beerSource.ownerId,
         count: (currentSummary?.count ?? 0) + 1,
       })
       continue
@@ -1138,11 +1186,21 @@ function consumeBeer(
         ),
       },
     }
+    merchantBeerCount += 1
+    consumedMerchantSpaceId = merchantSpaceId
   }
 
   return {
     game: currentGame,
-    summary: summarizeResourceSources('beer', consumedFromIndustry, 0),
+    summary: summarizeResourceSources(
+      game,
+      playerId,
+      'beer',
+      consumedFromIndustry,
+      0,
+      merchantBeerCount,
+      consumedMerchantSpaceId,
+    ),
   }
 }
 
@@ -1194,7 +1252,13 @@ function addBuildIndustryCandidates(
         }
 
         for (const boardTile of getUsableBuildTiles(game, playerId, industry)) {
-          for (const spaceId of getCandidateBuildSpaceIds(game, playerId, cityName, industry)) {
+          for (const spaceId of getCandidateBuildSpaceIds(
+            game,
+            playerId,
+            cityName,
+            industry,
+            boardTile.id,
+          )) {
           const placement: IndustryTilePlacement = {
             id: `${playerId}-${boardTile.id}-${spaceId}`,
             industry,
@@ -1471,7 +1535,7 @@ function addLoanCandidates(
     cardId: card.id,
     incomeBefore: player.income,
     incomeAfter,
-    description: `Took a loan, reduced income level from ${player.income} to ${incomeAfter}`,
+    description: `Took a loan, received £30, reduced income level from ${player.income} to ${incomeAfter}`,
   })
 }
 
@@ -1688,7 +1752,10 @@ function placeProducedResources(
   spaceId: string,
   industry: Industry,
   tileId: string,
-): GameState {
+): {
+  game: GameState
+  summary: string | null
+} {
   const resourceKind =
     industry === 'coal' || industry === 'iron' || industry === 'brewery'
       ? industry === 'brewery'
@@ -1699,8 +1766,10 @@ function placeProducedResources(
   let currentGame = game
 
   if (!resourceKind || count === 0) {
-    return currentGame
+    return { game: currentGame, summary: null }
   }
+
+  const cityName = getIndustrySpaceCity(spaceId)
 
   for (let index = 0; index < count; index += 1) {
     currentGame = {
@@ -1723,14 +1792,26 @@ function placeProducedResources(
   }
 
   if (resourceKind === 'iron') {
-    return autoMoveProducedResourceToMarket(currentGame, playerId, spaceId, 'iron')
+    currentGame = autoMoveProducedResourceToMarket(currentGame, playerId, spaceId, 'iron')
+  } else if (
+    resourceKind === 'coal' &&
+    isConnectedToMarket(currentGame.board, cityName)
+  ) {
+    currentGame = autoMoveProducedResourceToMarket(currentGame, playerId, spaceId, 'coal')
   }
 
-  if (resourceKind === 'coal' && isConnectedToMarket(currentGame.board, getIndustrySpaceCity(spaceId))) {
-    return autoMoveProducedResourceToMarket(currentGame, playerId, spaceId, 'coal')
+  const remainingOnTile = currentGame.board.industryResourcePlacements[spaceId]?.length ?? 0
+  const movedToMarket = Math.max(0, count - remainingOnTile)
+  let summary = `produced ${count} ${resourceKind} in ${cityName}`
+
+  if (movedToMarket > 0) {
+    summary +=
+      movedToMarket === count
+        ? ', moved to market'
+        : `, moved ${movedToMarket} to market`
   }
 
-  return currentGame
+  return { game: currentGame, summary }
 }
 
 function payBuildCost(
@@ -1738,7 +1819,10 @@ function payBuildCost(
   playerId: string,
   tileId: string,
   cityName: string,
-): GameState | null {
+): {
+  game: GameState
+  summary: string
+} | null {
   const rule = getPlayerBoardIndustryTileRule(tileId)
 
   if (!rule || getPlayerMoney(game, playerId) < rule.buildCost.money) {
@@ -1746,6 +1830,7 @@ function payBuildCost(
   }
 
   let currentGame = updatePlayerRoundSpending(game, playerId, rule.buildCost.money)
+  const summaryParts = [`paid £${rule.buildCost.money}`]
 
   for (const [resourceKind, count] of Object.entries(rule.buildCost.resources ?? {})) {
     if (!count) {
@@ -1764,9 +1849,16 @@ function payBuildCost(
     }
 
     currentGame = result.game
+
+    if (result.summary) {
+      summaryParts.push(result.summary)
+    }
   }
 
-  return currentGame
+  return {
+    game: currentGame,
+    summary: summaryParts.join('; '),
+  }
 }
 
 function placeBuiltIndustry(
@@ -1783,7 +1875,7 @@ function placeBuiltIndustry(
     return board === game.board ? null : { ...game, board }
   }
 
-  if (!canOverbuildIndustry(game, playerId, spaceId, placement.industry)) {
+  if (!canOverbuildIndustry(game, playerId, spaceId, placement.industry, placement.tileId ?? '')) {
     return null
   }
 
@@ -1822,33 +1914,58 @@ function executeBuildIndustryAction(
   game: GameState,
   playerId: string,
   action: Extract<AiCandidateAction, { kind: 'build-industry' }>,
-): GameState {
+): AiActionExecution {
+  const player = game.players.find((currentPlayer) => currentPlayer.id === playerId)
+  const card = player?.hand.find((handCard) => handCard.id === action.cardId)
+  const boardTile = playerBoardIndustryTiles.find((tile) => tile.id === action.playerBoardTileId)
   const afterDiscard = discardCardFromPlayerHand(game, playerId, action.cardId)
 
-  if (afterDiscard === game) {
-    return game
+  if (afterDiscard === game || !card) {
+    return {
+      game,
+      description: action.description,
+    }
   }
 
   const afterCost = payBuildCost(afterDiscard, playerId, action.playerBoardTileId, action.cityName)
 
   if (!afterCost) {
-    return game
+    return {
+      game,
+      description: action.description,
+    }
   }
 
-  const placement = buildIndustryPlacement(afterCost, playerId, action)
-  const withIndustry = placeBuiltIndustry(afterCost, playerId, action.spaceId, placement)
+  const placement = buildIndustryPlacement(afterCost.game, playerId, action)
+  const withIndustry = placeBuiltIndustry(afterCost.game, playerId, action.spaceId, placement)
 
   if (!withIndustry) {
-    return game
+    return {
+      game,
+      description: action.description,
+    }
   }
 
-  return placeProducedResources(
+  const withResources = placeProducedResources(
     withIndustry,
     playerId,
     action.spaceId,
     action.industry,
     action.playerBoardTileId,
   )
+  const descriptionParts = [
+    `Built ${action.industry} in ${action.cityName} (level ${boardTile?.level ?? 1}) using ${formatCardLabel(card)}`,
+    afterCost.summary,
+  ]
+
+  if (withResources.summary) {
+    descriptionParts.push(withResources.summary)
+  }
+
+  return {
+    game: withResources.game,
+    description: descriptionParts.join('; '),
+  }
 }
 
 function discardPlayedCard(game: GameState, playerId: string, cardId: string): GameState {
@@ -1863,26 +1980,39 @@ function executeNetworkAction(
   game: GameState,
   playerId: string,
   action: Extract<AiCandidateAction, { kind: 'network' }>,
-): GameState {
+): AiActionExecution {
   const player = game.players.find((currentPlayer) => currentPlayer.id === playerId)
 
   if (!player || player.money < action.cost) {
-    return game
+    return {
+      game,
+      description: action.description,
+    }
   }
 
   let currentGame = discardCardFromPlayerHand(game, playerId, action.cardId)
 
   if (currentGame === game) {
-    return game
+    return {
+      game,
+      description: action.description,
+    }
   }
 
   currentGame = updatePlayerRoundSpending(currentGame, playerId, action.cost)
+  const descriptionParts = [
+    `Networked ${action.linkPlacements.map((link) => link.routeLabel).join(' and ')}`,
+    `paid £${action.cost}`,
+  ]
 
   for (const link of action.linkPlacements) {
     const withLink = placeNetworkLink(currentGame, playerId, link)
 
     if (!withLink) {
-      return game
+      return {
+        game,
+        description: action.description,
+      }
     }
 
     currentGame = withLink
@@ -1891,10 +2021,17 @@ function executeNetworkAction(
       const coalResult = consumeCoal(currentGame, playerId, 1, link.coalLocationName)
 
       if (!coalResult) {
-        return game
+        return {
+          game,
+          description: action.description,
+        }
       }
 
       currentGame = coalResult.game
+
+      if (coalResult.summary) {
+        descriptionParts.push(coalResult.summary)
+      }
     }
   }
 
@@ -1902,37 +2039,72 @@ function executeNetworkAction(
     const beerResult = consumeBeer(currentGame, playerId, 1, action.beerLocationName)
 
     if (!beerResult) {
-      return game
+      return {
+        game,
+        description: action.description,
+      }
     }
 
     currentGame = beerResult.game
+
+    if (beerResult.summary) {
+      descriptionParts.push(beerResult.summary)
+    }
   }
 
-  return currentGame
+  return {
+    game: currentGame,
+    description: descriptionParts.join('; '),
+  }
 }
 
 function executeSellAction(
   game: GameState,
   playerId: string,
   action: Extract<AiCandidateAction, { kind: 'sell' }>,
-): GameState {
+): AiActionExecution {
+  const player = game.players.find((currentPlayer) => currentPlayer.id === playerId)
+  const card = player?.hand.find((handCard) => handCard.id === action.cardId)
   let currentGame = discardCardFromPlayerHand(game, playerId, action.cardId)
 
   if (currentGame === game) {
-    return game
+    return {
+      game,
+      description: action.description,
+    }
   }
+
+  const resourceParts: string[] = []
 
   for (const sale of action.sales) {
     const afterSale = applySellSale(currentGame, playerId, sale)
 
     if (!afterSale) {
-      return game
+      return {
+        game,
+        description: action.description,
+      }
     }
 
-    currentGame = afterSale
+    currentGame = afterSale.game
+
+    if (afterSale.resourceSummary) {
+      resourceParts.push(afterSale.resourceSummary)
+    }
   }
 
-  return currentGame
+  const descriptionParts = [
+    `${formatSellDescription(action.sales)} using ${card ? formatCardLabel(card) : 'card'}`,
+  ]
+
+  if (resourceParts.length > 0) {
+    descriptionParts.push(resourceParts.join(' and '))
+  }
+
+  return {
+    game: currentGame,
+    description: descriptionParts.join('; '),
+  }
 }
 
 export function executeAiCandidateAction(
@@ -1941,12 +2113,8 @@ export function executeAiCandidateAction(
   action: AiCandidateAction,
 ): AiActionExecution {
   switch (action.kind) {
-    case 'build-industry': {
-      return {
-        game: executeBuildIndustryAction(game, playerId, action),
-        description: action.description,
-      }
-    }
+    case 'build-industry':
+      return executeBuildIndustryAction(game, playerId, action)
     case 'build-link': {
       const withLink = applyGameAction(game, {
         type: 'place-link-tile',
@@ -1965,10 +2133,7 @@ export function executeAiCandidateAction(
       }
     }
     case 'network':
-      return {
-        game: executeNetworkAction(game, playerId, action),
-        description: action.description,
-      }
+      return executeNetworkAction(game, playerId, action)
     case 'develop': {
       const afterDiscard = discardCardFromPlayerHand(game, playerId, action.cardId)
       const ironResult = consumeIron(afterDiscard, playerId, action.tiles.length)
@@ -2008,7 +2173,7 @@ export function executeAiCandidateAction(
 
       return {
         game: afterIncome,
-        description: `Took a loan, reduced income level from ${action.incomeBefore} to ${action.incomeAfter}`,
+        description: `Took a loan, received £30, reduced income level from ${action.incomeBefore} to ${action.incomeAfter}`,
       }
     }
     case 'scout':
@@ -2017,10 +2182,7 @@ export function executeAiCandidateAction(
         description: action.description,
       }
     case 'sell':
-      return {
-        game: executeSellAction(game, playerId, action),
-        description: action.description,
-      }
+      return executeSellAction(game, playerId, action)
     case 'discard':
       return {
         game: discardPlayedCard(game, playerId, action.cardId),

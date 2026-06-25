@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import { createStrategicAiAgent } from '../aiActions'
-import { createGameState } from '../game'
+import { applyRoundOneStartingPlayer, createGameState } from '../game'
 import {
-  applyRoundOneStartingPlayer,
   createSeededGameState,
   resolveRoundOneStartingPlayerIndex,
   simulateAiGame,

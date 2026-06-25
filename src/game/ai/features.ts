@@ -6,15 +6,22 @@ import {
   marketLocations,
 } from '../board'
 import type { GameState } from '../game'
+import { getIncomeMoneyDelta } from '../game'
 import { getPlayerBoardIndustryTileRule, playerBoardIndustryTiles } from '../playerBoard'
 import type { AiCandidateAction } from '../aiActions'
 import { getLoanIncomeAfterReduction } from './estimators'
 import {
+  estimateBuildLocationValue,
   estimateBuildMoneyCost,
+  estimateCanalBeerDemand,
   estimateCoalPurchaseCost,
+  estimateDevelopUnlockValue,
   estimateIronPurchaseCost,
+  estimateNetworkActionValue,
   estimateNetworkMoneyCost,
   estimatePlannedTileFlipLikelihood,
+  estimateRailLinkValue,
+  estimateSellableIndustryBuildAppeal,
   finiteMoneyCost,
   getBuildSpacePriority,
   getPlayerMoney,
@@ -332,12 +339,14 @@ export function extractCandidateFeatures(
       setFeature(features, 'buildOverbuild', existingPlacement ? 1 : 0)
 
       if (game.era === 'canal') {
-        if (candidate.industry === 'brewery') {
-          setFeature(features, 'buildCanalBreweryBonus', 1)
-        }
-
         if (candidate.industry === 'coal' || candidate.industry === 'iron') {
           setFeature(features, 'buildCanalBricBonus', 1)
+        }
+
+        const canalBeerDemand = estimateCanalBeerDemand(game, playerId, candidate.cityName)
+
+        if (candidate.industry === 'brewery' && canalBeerDemand >= 0.35) {
+          setFeature(features, 'buildCanalBreweryBonus', 1)
         }
 
         if (tile?.level === 1) {
@@ -346,6 +355,10 @@ export function extractCandidateFeatures(
           } else {
             setFeature(features, 'buildCanalL1Risk', -(1 - flipLikelihood))
           }
+
+          if (candidate.industry === 'brewery' && canalBeerDemand < 0.35) {
+            setFeature(features, 'buildCanalL1Risk', -1)
+          }
         }
       }
 
@@ -353,8 +366,37 @@ export function extractCandidateFeatures(
         setFeature(features, 'buildRailHighLevel', tile.level * Math.max(0.45, flipLikelihood))
       }
 
+      const locationValue = estimateBuildLocationValue(
+        game,
+        playerId,
+        candidate.cityName,
+        candidate.playerBoardTileId,
+      )
+
       if (getBuildSpacePriority(candidate.spaceId, candidate.industry) === 0) {
-        setFeature(features, 'buildLocationQuality', 1)
+        setFeature(features, 'buildLocationQuality', 1 + locationValue * 0.35)
+      } else if (locationValue > 0.35) {
+        setFeature(features, 'buildLocationQuality', locationValue * 0.65)
+      }
+
+      if (sellableIndustries.includes(candidate.industry as SellableIndustry)) {
+        const sellAppeal = estimateSellableIndustryBuildAppeal(
+          game,
+          playerId,
+          candidate.industry,
+          candidate.cityName,
+          candidate.playerBoardTileId,
+        )
+
+        if (sellAppeal > 0) {
+          setFeature(features, 'buildVpFlip', (rule?.victoryPoints ?? 0) * flipLikelihood * (1 + sellAppeal))
+          setFeature(features, 'buildFlipLikelihood', flipLikelihood * (1 + sellAppeal * 0.35))
+          setFeature(
+            features,
+            'buildConnectedToMarket',
+            (isConnectedToMarket(game, candidate.cityName) ? 1 : 0) + sellAppeal * 0.4,
+          )
+        }
       }
 
       if (rule?.incomeIncrease) {
@@ -364,6 +406,7 @@ export function extractCandidateFeatures(
           scoreIncomeTrackChange(
             projectedIncome,
             projectedIncome + Math.round(rule.incomeIncrease * flipLikelihood),
+            game,
           ),
         )
       }
@@ -388,12 +431,15 @@ export function extractCandidateFeatures(
     case 'network': {
       setFeature(features, 'biasNetwork', 1)
 
+      const linkSpaceIds = candidate.linkPlacements.map((link) => link.spaceId)
+      const networkValue = estimateNetworkActionValue(game, playerId, linkSpaceIds)
+
       if (candidate.linkPlacements.length === 2) {
-        setFeature(features, 'networkDoubleLink', 1)
+        setFeature(features, 'networkDoubleLink', Math.max(0.35, networkValue * 0.75))
       } else if (game.era === 'rail') {
-        setFeature(features, 'networkSingleRail', 1)
+        setFeature(features, 'networkSingleRail', Math.max(0.05, networkValue))
       } else {
-        setFeature(features, 'networkSingleCanal', 1)
+        setFeature(features, 'networkSingleCanal', Math.max(0.35, networkValue * 0.85))
       }
 
       let breweryLinks = 0
@@ -402,9 +448,12 @@ export function extractCandidateFeatures(
 
       for (const link of candidate.linkPlacements) {
         const placementScore = scoreNetworkLinkPlacement(link.spaceId)
-        breweryLinks += placementScore.brewery
-        birminghamLinks += placementScore.birmingham
-        marketLinks += placementScore.market
+        const linkValue = estimateRailLinkValue(game, playerId, link.spaceId)
+        const valueScale = Math.max(0.35, linkValue)
+
+        breweryLinks += placementScore.brewery * valueScale
+        birminghamLinks += placementScore.birmingham * valueScale
+        marketLinks += placementScore.market * valueScale
       }
 
       setFeature(features, 'networkToBrewery', breweryLinks)
@@ -416,7 +465,11 @@ export function extractCandidateFeatures(
         -finiteMoneyCost(estimateNetworkMoneyCost(game, candidate)),
       )
       setFeature(features, 'networkCoalCost', -getNetworkCoalCost(game, candidate))
-      setFeature(features, 'networkExtendsOwnNetwork', networkExtendsOwnNetwork(game, playerId, candidate))
+      setFeature(
+        features,
+        'networkExtendsOwnNetwork',
+        networkExtendsOwnNetwork(game, playerId, candidate) * Math.max(0.4, networkValue),
+      )
       setFeature(features, 'networkBlocksOpponent', networkBlocksOpponent(game, playerId, candidate))
       break
     }
@@ -441,7 +494,16 @@ export function extractCandidateFeatures(
         'developIronCost',
         -finiteMoneyCost(estimateIronPurchaseCost(game, candidate.tiles.length)),
       )
-      setFeature(features, 'developSellableIndustry', countSellableInDevelop(candidate.tiles))
+      setFeature(
+        features,
+        'developSellableIndustry',
+        countSellableInDevelop(candidate.tiles) +
+          estimateDevelopUnlockValue(
+            game,
+            playerId,
+            candidate.tiles.map((tile) => tile.playerBoardTileId),
+          ),
+      )
       break
     }
     case 'sell': {
@@ -475,6 +537,7 @@ export function extractCandidateFeatures(
         incomeTrackChange += scoreIncomeTrackChange(
           runningIncome,
           runningIncome + sale.incomeIncrease,
+          game,
         )
         runningIncome += sale.incomeIncrease
 
@@ -535,10 +598,13 @@ export function extractCandidateFeatures(
       if (incomeAfter === null) {
         setFeature(features, 'loanIncomeFloorPenalty', 1)
       } else {
+        const trackChange = scoreIncomeTrackChange(projectedIncome, incomeAfter, game)
+        const incomeDelta = getIncomeMoneyDelta(projectedIncome)
+
         setFeature(
           features,
           'sellIncomeTrackChange',
-          scoreIncomeTrackChange(projectedIncome, incomeAfter),
+          incomeDelta > 1 ? Math.min(trackChange, 0) : trackChange,
         )
       }
 

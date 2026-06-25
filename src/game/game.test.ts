@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { getDeckForPlayerCount, HAND_LIMIT } from './deck.ts'
 import {
   createGameState,
+  randomizeRoundOneStartingPlayer,
   developIndustryTile,
   discardCardFromPlayerHand,
   flipDevelopedIndustryTile,
@@ -10,6 +11,8 @@ import {
   getIncomeMoneyDelta,
   getRequiredEndTurnHandSize,
   getTurnOrderSpendLabel,
+  getPlayerIndexForTurnSlot,
+  getRoundStartingPlayerIndex,
   outdateIndustryTile,
   passTurn,
   flipPlayerBoardIndustryTile,
@@ -125,7 +128,7 @@ describe('Brass: Birmingham game setup', () => {
     ])
   })
 
-  it('starts in canal era with white as the active player for round one', () => {
+  it('starts in canal era for round one with a valid active player', () => {
     const game = createGameState(4)
 
     expect(game.era).toBe('canal')
@@ -135,6 +138,41 @@ describe('Brass: Birmingham game setup', () => {
     expect(game.roundNumber).toBe(1)
     expect(game.turnsTakenThisRound).toBe(0)
     expect(game.turnStartHandCount).toBe(HAND_LIMIT)
+  })
+
+  it('can randomize the round-one starting player', () => {
+    const game = randomizeRoundOneStartingPlayer(createGameState(4), () => 0.75)
+
+    expect(game.activePlayerIndex).toBe(3)
+    expect(game.players[game.activePlayerIndex].color).toBe('yellow')
+    expect(game.turnStartHandCount).toBe(HAND_LIMIT)
+    expect(getRoundStartingPlayerIndex(game)).toBe(3)
+    expect(getPlayerIndexForTurnSlot(game, 0)).toBe(3)
+    expect(getPlayerIndexForTurnSlot(game, 1)).toBe(0)
+  })
+
+  it('shows spend labels using rotated turn order when the round does not start with player zero', () => {
+    const baseGame = createGameState(4)
+    const game = {
+      ...baseGame,
+      activePlayerIndex: 3,
+      turnsTakenThisRound: 1,
+      players: baseGame.players.map((player, index) => ({
+        ...player,
+        moneySpentThisRound: [0, 0, 3, 5][index],
+      })),
+    }
+
+    expect(getRoundStartingPlayerIndex(game)).toBe(2)
+    expect(game.players.map((_, index) => getTurnOrderSpendLabel(game, index))).toEqual([
+      '',
+      '',
+      '3',
+      '5',
+    ])
+    expect(getPlayerIndexForTurnSlot(game, 0)).toBe(2)
+    expect(getPlayerIndexForTurnSlot(game, 1)).toBe(3)
+    expect(getPlayerIndexForTurnSlot(game, 2)).toBe(0)
   })
 
   it('starts every local player with Brass starting money', () => {

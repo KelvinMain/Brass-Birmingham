@@ -41,8 +41,8 @@ export {
 } from './ai/parametricScorer'
 
 export { createSeededRandom } from './ai/random'
+export { applyRoundOneStartingPlayer } from './game'
 export {
-  applyRoundOneStartingPlayer,
   createSeededGameState,
   getPlayerFitness,
   resolveRoundOneStartingPlayerIndex,

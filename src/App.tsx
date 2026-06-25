@@ -42,8 +42,10 @@ import type { AiAgentFactory } from './game/ai'
 import type { AiLogEntry } from './game/ai'
 import {
   createGameState,
+  randomizeRoundOneStartingPlayer,
   getRequiredEndTurnHandSize,
   getTurnOrderSpendLabel,
+  getPlayerIndexForTurnSlot,
 } from './game/game'
 import type { GameState, PlayerColor } from './game/game'
 import type { LocalGameMode } from './game/gameMode'
@@ -262,7 +264,9 @@ type ResourceCubeDragPayload = Omit<MarketResourcePlacement, 'spaceId'> & {
 }
 
 function createShuffledGameState(playerCount: PlayerCount): GameState {
-  return createGameState(playerCount, shuffleDeck(getDeckForPlayerCount(playerCount)))
+  return randomizeRoundOneStartingPlayer(
+    createGameState(playerCount, shuffleDeck(getDeckForPlayerCount(playerCount))),
+  )
 }
 
 function createVsAiGameState(playerCount: PlayerCount): GameState {
@@ -1709,7 +1713,7 @@ function App() {
         </div>
         <div className="score-grid">
           {game.players.map((player) => (
-            <article className="score-card" key={player.id}>
+            <article className="score-card" key={player.id} style={getPlayerPieceStyle(player.id)}>
               <h3>{player.name}</h3>
               <div className="score-row">
                 <span>VP</span>
@@ -2038,7 +2042,7 @@ function App() {
             <img src="/src/assets/board/board.jpg" alt="Brass Birmingham board" />
 
             {calibratedTurnMarkerSpaces.map((space) => {
-              const playerIndex = space.turnIndex - 1
+              const playerIndex = getPlayerIndexForTurnSlot(game, space.turnIndex - 1)
               const player = game.players[playerIndex]
 
               if (!player || playerIndex >= game.playerCount) {

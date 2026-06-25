@@ -91,10 +91,28 @@ export function getActionsPerTurn(game: GameState): number {
   return Math.max(0, activePlayer.hand.length - getRequiredEndTurnHandSize(game))
 }
 
+export function getRoundStartingPlayerIndex(game: GameState): number {
+  return (
+    (game.activePlayerIndex - game.turnsTakenThisRound + game.playerCount) %
+    game.playerCount
+  )
+}
+
+export function getPlayerIndexForTurnSlot(game: GameState, turnSlot: number): number {
+  return (getRoundStartingPlayerIndex(game) + turnSlot) % game.playerCount
+}
+
+function getTurnSlotForPlayerIndex(game: GameState, playerIndex: number): number {
+  return (
+    (playerIndex - getRoundStartingPlayerIndex(game) + game.playerCount) %
+    game.playerCount
+  )
+}
+
 export function getTurnOrderSpendLabel(game: GameState, playerIndex: number): string {
   const player = game.players[playerIndex]
 
-  if (!player || playerIndex > game.activePlayerIndex) {
+  if (!player || getTurnSlotForPlayerIndex(game, playerIndex) > game.turnsTakenThisRound) {
     return ''
   }
 
@@ -246,6 +264,32 @@ export function passTurn(game: GameState, options: PassTurnOptions = {}): GameSt
   }
 
   return turnsTakenThisRound >= game.playerCount ? completeRound(nextGame, options) : nextGame
+}
+
+export function applyRoundOneStartingPlayer(
+  game: GameState,
+  startingPlayerIndex: number,
+): GameState {
+  const activePlayer = game.players[startingPlayerIndex]
+
+  if (!activePlayer || game.roundNumber !== 1 || game.turnsTakenThisRound !== 0) {
+    return game
+  }
+
+  return {
+    ...game,
+    activePlayerIndex: startingPlayerIndex,
+    turnStartHandCount: activePlayer.hand.length,
+  }
+}
+
+export function randomizeRoundOneStartingPlayer(
+  game: GameState,
+  random: () => number = Math.random,
+): GameState {
+  const startingPlayerIndex = Math.floor(random() * game.playerCount)
+
+  return applyRoundOneStartingPlayer(game, startingPlayerIndex)
 }
 
 export function createGameState(

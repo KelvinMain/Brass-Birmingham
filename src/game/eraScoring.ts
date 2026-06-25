@@ -3,6 +3,7 @@ import {
   linkSpaces,
   removeIndustryTile,
   removeLinkTile,
+  resetMerchantBeerPlacements,
 } from './board'
 import type { BoardState, LinkKind, LinkSpace } from './board'
 import type { Era, GameState } from './game'
@@ -176,13 +177,16 @@ export function applyEraScoring(game: GameState, scoringEra: Era): GameState {
     }
   }
 
-  nextGame = {
-    ...nextGame,
-    board: removeScoredLinkTiles(nextGame.board, linkKind),
-  }
-
   if (scoringEra === 'canal') {
+    nextGame = {
+      ...nextGame,
+      board: removeScoredLinkTiles(nextGame.board, linkKind),
+    }
     nextGame = removeLevelOneIndustriesFromBoard(nextGame)
+    nextGame = {
+      ...nextGame,
+      board: resetMerchantBeerPlacements(nextGame.board),
+    }
   }
 
   return nextGame

@@ -16,8 +16,14 @@ import {
   getMarketResourceCost,
   MARKET_GENERAL_SUPPLY_COST,
 } from '../market'
-import { getPlayerBoardIndustryTileRule } from '../playerBoard'
+import {
+  getPlayerBoardIndustryTileRule,
+  getPlayerBoardTileCount,
+  isPlayerBoardIndustryTileUsable,
+  playerBoardIndustryTiles,
+} from '../playerBoard'
 import type { AiCandidateAction } from '../aiActions'
+import { countLinkSymbolsAtLocation } from '../eraScoring'
 
 export const PREFERRED_INCOME_TRACK = 10
 
@@ -36,12 +42,142 @@ const merchantLocationBySpaceId = {
   'merchant-tile-9': 'Gloucester',
 } as const
 
-export function scoreIncomeTrackPreference(income: number): number {
-  return -Math.abs(getIncomeMoneyDelta(income)) * 4
+export function scoreIncomeTrackPreference(income: number, game?: GameState): number {
+  const distanceFromNeutral = Math.abs(getIncomeMoneyDelta(income))
+  let score = -distanceFromNeutral * 5
+
+  if (game?.era === 'canal' && game.roundNumber <= 5) {
+    score *= 1.6
+  } else if (game?.era === 'rail' && game.roundNumber <= 2) {
+    score *= 1.3
+  }
+
+  if (distanceFromNeutral <= 1) {
+    score += 8
+  }
+
+  return score
 }
 
-export function scoreIncomeTrackChange(before: number, after: number): number {
-  return scoreIncomeTrackPreference(after) - scoreIncomeTrackPreference(before)
+export function scoreIncomeTrackChange(before: number, after: number, game?: GameState): number {
+  return scoreIncomeTrackPreference(after, game) - scoreIncomeTrackPreference(before, game)
+}
+
+export function scoreIncomeAnchorPreference(income: number, game?: GameState): number {
+  const incomeDelta = getIncomeMoneyDelta(income)
+  const distanceFromNeutral = Math.abs(incomeDelta)
+  let score = -distanceFromNeutral * 8
+
+  if (game?.era === 'canal' && game.roundNumber <= 5) {
+    score -= distanceFromNeutral * 5
+  } else if (game?.era === 'rail' && game.roundNumber <= 2) {
+    score -= distanceFromNeutral * 3
+  }
+
+  if (distanceFromNeutral <= 1) {
+    score += 10
+  }
+
+  if (incomeDelta < -2) {
+    score -= 20
+  }
+
+  return score
+}
+
+export function estimateCanalBeerDemand(
+  game: GameState,
+  playerId: string,
+  cityName: string,
+): number {
+  if (game.era !== 'canal') {
+    return 1
+  }
+
+  let demand = 0
+  const merchants = Object.values(getVisibleMerchantTilePlacements(game.board))
+
+  for (const [spaceId, placement] of Object.entries(game.board.industryPlacements)) {
+    if (placement.ownerId !== playerId) {
+      continue
+    }
+
+    const sellIndustry = getSellableIndustry(placement.industry)
+
+    if (!sellIndustry) {
+      continue
+    }
+
+    const industryCity = getIndustrySpaceCity(spaceId)
+    const rule = getPlayerBoardIndustryTileRule(placement.tileId ?? '')
+    const beerNeeded = rule?.sellBeer ?? 0
+
+    for (const merchant of merchants) {
+      if (merchant.kind !== sellIndustry) {
+        continue
+      }
+
+      const merchantLocation = getMerchantLocation(merchant.spaceId)
+
+      if (
+        !merchantLocation ||
+        !areLocationsConnected(game.board, industryCity, merchantLocation)
+      ) {
+        continue
+      }
+
+      if (beerNeeded === 0) {
+        demand += 0.25
+        continue
+      }
+
+      if (
+        industryCity === cityName ||
+        areLocationsConnected(game.board, cityName, industryCity)
+      ) {
+        demand += 0.45
+      }
+    }
+  }
+
+  for (const merchant of merchants) {
+    const merchantLocation = getMerchantLocation(merchant.spaceId)
+
+    if (!merchantLocation || !areLocationsConnected(game.board, cityName, merchantLocation)) {
+      continue
+    }
+
+    const merchantBeerSpaceId = getMerchantBeerSpaceId(merchant.spaceId)
+
+    if (game.board.beerResourcePlacements[merchantBeerSpaceId]) {
+      demand += 0.2
+    }
+  }
+
+  const accessibleBeer = Object.entries(game.board.industryResourcePlacements).some(
+    ([spaceId, resources]) => {
+      const placement = game.board.industryPlacements[spaceId]
+
+      if (!placement || placement.industry !== 'brewery') {
+        return false
+      }
+
+      const breweryCity = getIndustrySpaceCity(spaceId)
+      const hasBeer = resources.some((resource) => resource.kind === 'beer')
+
+      return (
+        hasBeer &&
+        (breweryCity === cityName ||
+          areLocationsConnected(game.board, cityName, breweryCity))
+      )
+    },
+  )
+
+  if (accessibleBeer) {
+    demand += 0.15
+  }
+
+  return Math.min(1, demand)
 }
 
 function getIndustrySpaceCity(spaceId: string): string {
@@ -399,6 +535,270 @@ export function getBuildSpacePriority(spaceId: string, industry: Industry): numb
 
 export function getPlayerMoney(game: GameState, playerId: string): number {
   return game.players.find((player) => player.id === playerId)?.money ?? 0
+}
+
+function getPlacedPlayerBoardTileCount(game: GameState, playerId: string, tileId: string): number {
+  return (
+    Object.values(game.board.industryPlacements).filter(
+      (placement) => placement.ownerId === playerId && placement.tileId === tileId,
+    ).length +
+    game.developedIndustries.filter((tile) => tile.ownerId === playerId && tile.tileId === tileId)
+      .length +
+    game.outdatedIndustries.filter((tile) => tile.ownerId === playerId && tile.tileId === tileId)
+      .length
+  )
+}
+
+export function getRemainingPlayerBoardTileCounts(
+  game: GameState,
+  playerId: string,
+): Record<string, number> {
+  return Object.fromEntries(
+    playerBoardIndustryTiles.map((tile) => [
+      tile.id,
+      Math.max(0, getPlayerBoardTileCount(tile.id) - getPlacedPlayerBoardTileCount(game, playerId, tile.id)),
+    ]),
+  )
+}
+
+function getLinkRouteCities(spaceId: string): string[] {
+  const space = linkSpaces.find((linkSpace) => linkSpace.id === spaceId)
+
+  if (!space) {
+    return []
+  }
+
+  return [...new Set([space.from, space.to, space.via].filter(Boolean) as string[])]
+}
+
+function countIndustriesAtCity(board: BoardState, cityName: string): number {
+  return Object.entries(board.industryPlacements).filter(
+    ([spaceId]) => getIndustrySpaceCity(spaceId) === cityName,
+  ).length
+}
+
+function countPlayerLinksAtCity(board: BoardState, playerId: string, cityName: string): number {
+  return Object.entries(board.linkPlacements).filter(
+    ([spaceId, placement]) =>
+      placement.ownerId === playerId &&
+      getLinkRouteCities(spaceId).includes(cityName),
+  ).length
+}
+
+function isLocationInPlayerNetwork(game: GameState, playerId: string, locationName: string): boolean {
+  const hasIndustryAtLocation = Object.entries(game.board.industryPlacements).some(
+    ([spaceId, placement]) =>
+      placement.ownerId === playerId && getIndustrySpaceCity(spaceId) === locationName,
+  )
+
+  if (hasIndustryAtLocation) {
+    return true
+  }
+
+  return Object.entries(game.board.linkPlacements).some(([spaceId, placement]) => {
+    if (placement.ownerId !== playerId) {
+      return false
+    }
+
+    const link = linkSpaces.find((space) => space.id === spaceId)
+
+    return Boolean(link && (link.from === locationName || link.to === locationName))
+  })
+}
+
+export function estimateCityBuildPotential(game: GameState, cityName: string): number {
+  const emptySpaces = industrySpaces.filter(
+    (space) => space.city === cityName && !game.board.industryPlacements[space.id],
+  )
+
+  if (emptySpaces.length === 0) {
+    return 0
+  }
+
+  let potential = 0
+
+  for (const player of game.players) {
+    const remaining = getRemainingPlayerBoardTileCounts(game, player.id)
+
+    for (const space of emptySpaces) {
+      for (const industry of space.allowedIndustries) {
+        const usableTiles = playerBoardIndustryTiles.filter(
+          (tile) =>
+            tile.industry === industry &&
+            (remaining[tile.id] ?? 0) > 0 &&
+            isPlayerBoardIndustryTileUsable(tile.id, remaining),
+        )
+
+        if (usableTiles.length > 0) {
+          potential += 0.15
+        }
+      }
+    }
+  }
+
+  return Math.min(1.5, potential)
+}
+
+export function estimateRailLinkValue(game: GameState, playerId: string, spaceId: string): number {
+  const cities = getLinkRouteCities(spaceId)
+
+  if (cities.length === 0) {
+    return 0
+  }
+
+  let value = 0
+
+  for (const city of cities) {
+    value += countLinkSymbolsAtLocation(game.board, city) * 0.4
+    value += countIndustriesAtCity(game.board, city) * 0.22
+    value += estimateCityBuildPotential(game, city) * 0.35
+    value += countPlayerLinksAtCity(game.board, playerId, city) * 0.12
+  }
+
+  return Math.min(2, value / Math.max(1, cities.length))
+}
+
+export function estimateNetworkActionValue(
+  game: GameState,
+  playerId: string,
+  linkSpaceIds: string[],
+): number {
+  if (linkSpaceIds.length === 0) {
+    return 0
+  }
+
+  const average =
+    linkSpaceIds.reduce((total, spaceId) => total + estimateRailLinkValue(game, playerId, spaceId), 0) /
+    linkSpaceIds.length
+
+  if (game.era === 'canal') {
+    return Math.min(2, average + 0.35)
+  }
+
+  return average
+}
+
+export function estimateBuildLocationValue(
+  game: GameState,
+  playerId: string,
+  cityName: string,
+  tileId: string,
+): number {
+  const rule = getPlayerBoardIndustryTileRule(tileId)
+  const linkSymbols = rule?.linkSymbols ?? 0
+  const ownedLinksAtCity = countPlayerLinksAtCity(game.board, playerId, cityName)
+  let value = 0
+
+  if (linkSymbols > 0 && ownedLinksAtCity > 0) {
+    value += linkSymbols * ownedLinksAtCity * 0.25
+  }
+
+  if (ownedLinksAtCity >= 2) {
+    value += 0.45
+  }
+
+  const inNetwork = isLocationInPlayerNetwork(game, playerId, cityName)
+  const buildPotential = estimateCityBuildPotential(game, cityName)
+
+  if (!inNetwork && buildPotential > 0) {
+    value += 0.35 + buildPotential * 0.2
+  }
+
+  if (inNetwork && buildPotential > 0) {
+    value += 0.15
+  }
+
+  if (isConnectedToMarket(game.board, cityName)) {
+    value += 0.12
+  }
+
+  return Math.min(2, value)
+}
+
+export function estimateDevelopUnlockValue(
+  game: GameState,
+  playerId: string,
+  developedTileIds: string[],
+): number {
+  const remaining = getRemainingPlayerBoardTileCounts(game, playerId)
+  let unlockValue = 0
+
+  for (const tileId of developedTileIds) {
+    const developedTile = playerBoardIndustryTiles.find((tile) => tile.id === tileId)
+
+    if (!developedTile) {
+      continue
+    }
+
+    const afterCounts = {
+      ...remaining,
+      [tileId]: Math.max(0, (remaining[tileId] ?? 0) - 1),
+    }
+
+    for (const higherTile of playerBoardIndustryTiles.filter(
+      (tile) => tile.industry === developedTile.industry && tile.level > developedTile.level,
+    )) {
+      if ((afterCounts[higherTile.id] ?? 0) <= 0) {
+        continue
+      }
+
+      if (
+        !isPlayerBoardIndustryTileUsable(higherTile.id, remaining) &&
+        isPlayerBoardIndustryTileUsable(higherTile.id, afterCounts)
+      ) {
+        const weight = sellableIndustries.includes(higherTile.industry as SellableIndustry)
+          ? 0.75
+          : higherTile.industry === 'brewery' ||
+              higherTile.industry === 'coal' ||
+              higherTile.industry === 'iron'
+            ? 0.55
+            : 0.35
+        unlockValue += weight
+      }
+    }
+  }
+
+  return Math.min(2, unlockValue)
+}
+
+export function estimateSellableIndustryBuildAppeal(
+  game: GameState,
+  playerId: string,
+  industry: Industry,
+  cityName: string,
+  tileId: string,
+): number {
+  if (!sellableIndustries.includes(industry as SellableIndustry)) {
+    return 0
+  }
+
+  const flipLikelihood = estimatePlannedTileFlipLikelihood(game, playerId, industry, tileId, cityName)
+  const rule = getPlayerBoardIndustryTileRule(tileId)
+  const merchants = Object.values(getVisibleMerchantTilePlacements(game.board))
+  let merchantReach = 0
+
+  for (const merchant of merchants) {
+    const merchantLocation = getMerchantLocation(merchant.spaceId)
+
+    if (
+      !merchantLocation ||
+      merchant.kind !== industry ||
+      !areLocationsConnected(game.board, cityName, merchantLocation)
+    ) {
+      continue
+    }
+
+    merchantReach += 1
+  }
+
+  if (merchantReach === 0) {
+    return 0
+  }
+
+  const vpAppeal = (rule?.victoryPoints ?? 0) / 12
+  const incomeAppeal = (rule?.incomeIncrease ?? 0) / 8
+
+  return Math.min(2, merchantReach * 0.35 + flipLikelihood * 0.45 + vpAppeal + incomeAppeal * 0.25)
 }
 
 export function getLoanIncomeAfterReduction(income: number): number | null {

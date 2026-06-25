@@ -168,7 +168,7 @@ describe('eraScoring', () => {
       'rail',
     )
 
-    expect(afterRailScoring.board.linkPlacements['birmingham-coventry']).toBeUndefined()
+    expect(afterRailScoring.board.linkPlacements['birmingham-coventry']).toBeDefined()
     expect(afterRailScoring.players[0].victoryPoints).toBe(25)
   })
 
@@ -227,6 +227,25 @@ describe('eraScoring', () => {
 
     expect(afterScoring.board.industryPlacements['birmingham-3']).toBeDefined()
     expect(afterScoring.players[0].victoryPoints).toBe(5)
+  })
+
+  it('restores merchant beer when canal era scoring ends', () => {
+    const baseGame = createGameState(2)
+    const expectedBeerSpaces = Object.keys(baseGame.board.beerResourcePlacements).sort()
+    const board = {
+      ...baseGame.board,
+      beerResourcePlacements: {},
+    }
+    const afterScoring = applyEraScoring(
+      {
+        ...baseGame,
+        board,
+      },
+      'canal',
+    )
+
+    expect(Object.keys(afterScoring.board.beerResourcePlacements).sort()).toEqual(expectedBeerSpaces)
+    expect(expectedBeerSpaces.length).toBeGreaterThan(0)
   })
 })
 
@@ -307,7 +326,7 @@ describe('passTurn era transitions with scoring', () => {
 
     expect(result.status).toBe('ended')
     expect(result.players[1].victoryPoints).toBe(10)
-    expect(result.board.linkPlacements['birmingham-coventry']).toBeUndefined()
+    expect(result.board.linkPlacements['birmingham-coventry']).toBeDefined()
     expect(result.board.industryPlacements['coventry-3']).toBeDefined()
   })
 })
