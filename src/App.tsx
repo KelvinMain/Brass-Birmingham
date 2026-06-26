@@ -2041,11 +2041,13 @@ function App() {
           <div className="board-map" ref={boardMapRef}>
             <img src="/src/assets/board/board.jpg" alt="Brass Birmingham board" />
 
-            {calibratedTurnMarkerSpaces.map((space) => {
+            {calibratedTurnMarkerSpaces
+              .filter((space) => space.turnIndex <= game.playerCount)
+              .map((space) => {
               const playerIndex = getPlayerIndexForTurnSlot(game, space.turnIndex - 1)
               const player = game.players[playerIndex]
 
-              if (!player || playerIndex >= game.playerCount) {
+              if (!player) {
                 return null
               }
 
