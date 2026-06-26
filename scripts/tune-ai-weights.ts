@@ -1,9 +1,11 @@
+import { availableParallelism } from 'node:os'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 
 const { runWeightEvolution, loadTunedWeightsFromSerialized } = await import(
   '../src/game/ai/weightEvolution'
 )
+const { resolveWorkerCount } = await import('../src/game/ai/weightEvolutionPool')
 const { AI_PARAM_COUNT } = await import('../src/game/ai/params')
 
 function readFlag(name: string): string | undefined {
@@ -58,6 +60,24 @@ const playerCount = readNumberFlag('--players', 2) as 2 | 3 | 4
 const output = readFlag('--output') ?? 'public/ai/tuned-weights.json'
 const resumeFrom = readFlag('--resume-from')
 const mode = readFlag('--mode') === 'league' || hasFlag('--league') ? 'league' : 'fixed'
+function readWorkersFlag(): number {
+  const value = readFlag('--workers')
+
+  if (!value) {
+    return 1
+  }
+
+  if (value === 'auto') {
+    return 0
+  }
+
+  const parsed = Number(value)
+
+  return Number.isFinite(parsed) ? parsed : 1
+}
+
+const workers = readWorkersFlag()
+const resolvedWorkers = resolveWorkerCount(workers)
 const verboseGames = hasFlag('--verbose-games')
 const totalGames = generations * population * games
 
@@ -73,7 +93,7 @@ const league =
     : undefined
 
 console.log(
-  `Starting AI weight tuning: mode=${mode} generations=${generations} population=${population} games=${games} players=${playerCount} seed=${seed}`,
+  `Starting AI weight tuning: mode=${mode} generations=${generations} population=${population} games=${games} players=${playerCount} seed=${seed} workers=${resolvedWorkers}`,
 )
 
 if (mode === 'league') {
@@ -101,11 +121,16 @@ console.log(`Total simulations: ${totalGames.toLocaleString()} full ${playerCoun
 console.log(
   'Tip: each game takes ~1-3s. Defaults can take many hours. Try --generations 5 --population 8 --games 4 for a quick test.',
 )
+if (resolvedWorkers === 1) {
+  console.log(
+    `Tip: use --workers auto (${Math.max(1, availableParallelism() - 1)} cores) or --workers N to evaluate genomes in parallel.`,
+  )
+}
 console.log('Progress logs appear below as each genome finishes.\n')
 
 const resumeWeights = await loadResumeWeights(resumeFrom)
 
-const result = runWeightEvolution({
+const result = await runWeightEvolution({
   generations,
   populationSize: population,
   gamesPerGenome: games,
@@ -116,6 +141,7 @@ const result = runWeightEvolution({
   mode,
   league,
   resumeWeights,
+  workers,
 })
 
 if (result.outputPath) {

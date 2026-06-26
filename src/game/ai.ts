@@ -95,14 +95,7 @@ export {
   createTunedAiAgentFactory,
   createWeightedAiAgentFactory,
   loadTunedWeightsFromSerialized,
-  runWeightEvolution,
-} from './ai/weightEvolution'
-export type {
-  WeightEvolutionConfig,
-  WeightEvolutionGenerationStats,
-  WeightEvolutionMode,
-  WeightEvolutionResult,
-} from './ai/weightEvolution'
+} from './ai/weightEvolutionClient'
 
 export {
   getEraCardProgress,
